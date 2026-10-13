@@ -255,6 +255,8 @@ fun MainScreen(
                         val episodesRoute = backStackEntry.toRoute<EpisodesRoute>()
                         EpisodesPage(
                             route = episodesRoute,
+                            useDarkTheme = useDarkTheme,
+                            isAmoled = isAmoled,
                             onBack = navController::navigateUp,
                             onNavigateToPlayer = navController::navigate,
                         )

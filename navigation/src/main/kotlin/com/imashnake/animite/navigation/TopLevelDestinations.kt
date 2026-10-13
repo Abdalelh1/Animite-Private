@@ -49,5 +49,10 @@ data class EpisodesRoute(
     val animeTitle: String,
     val otherTitlesJson: String = "[]",
     val fallbackThumbnail: String = "",
+    val colorHex: String? = null,
+    val bannerImage: String? = null,
+    val coverImage: String? = null,
+    val totalEpisodes: Int? = null,
+    val seasonYear: String? = null,
 )
 

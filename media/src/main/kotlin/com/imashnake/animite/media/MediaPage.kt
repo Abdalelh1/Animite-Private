@@ -329,6 +329,11 @@ fun MediaPage(
                                                                 animeTitle = media.title.orEmpty(),
                                                                 otherTitlesJson = otherTitlesJson,
                                                                 fallbackThumbnail = media.bannerImage ?: media.coverImage ?: "",
+                                                                colorHex = media.color,
+                                                                bannerImage = media.bannerImage,
+                                                                coverImage = media.coverImage,
+                                                                totalEpisodes = media.episodes,
+                                                                seasonYear = media.year,
                                                             )
                                                         )
                                                     },
@@ -441,6 +446,11 @@ fun MediaPage(
                                                                 animeTitle = media.title.orEmpty(),
                                                                 otherTitlesJson = otherTitlesJson,
                                                                 fallbackThumbnail = media.bannerImage ?: media.coverImage ?: "",
+                                                                colorHex = media.color,
+                                                                bannerImage = media.bannerImage,
+                                                                coverImage = media.coverImage,
+                                                                totalEpisodes = media.episodes,
+                                                                seasonYear = media.year,
                                                             )
                                                         )
                                                     },
