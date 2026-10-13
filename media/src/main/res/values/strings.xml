@@ -179,5 +179,9 @@
     <string name="sort_oldest_first">Oldest first</string>
     <string name="sort_newest_first">Newest first</string>
     <string name="no_episodes_found_for_anime">No episodes found for this anime</string>
+    <string name="watch_episodes">Watch Episodes</string>
+    <string name="view_all_episodes">View All Episodes</string>
+    <string name="episodes_count_label">%1$d Episodes</string>
+    <string name="available_to_watch">Available to stream</string>
 </resources>
 

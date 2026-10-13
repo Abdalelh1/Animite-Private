@@ -55,10 +55,16 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
 import androidx.compose.material3.Icon
@@ -147,6 +153,7 @@ import com.imashnake.animite.media.ext.title
 import com.imashnake.animite.navigation.ExploreRoute
 import com.imashnake.animite.navigation.VideoPlayerRoute
 import com.imashnake.animite.media.source.MediaEpisodesSection
+import com.imashnake.animite.navigation.EpisodesRoute
 import com.imashnake.animite.navigation.SharedContentKey
 import com.imashnake.animite.navigation.SharedContentKey.Component.Card
 import com.imashnake.animite.navigation.SharedContentKey.Component.Image
@@ -178,6 +185,7 @@ fun MediaPage(
     onNavigateToMediaItem: (MediaPage) -> Unit,
     onNavigateToExplore: (ExploreRoute) -> Unit,
     onNavigateToPlayer: (VideoPlayerRoute) -> Unit = {},
+    onNavigateToEpisodes: (EpisodesRoute) -> Unit = {},
     deviceScreenCornerRadius: Int,
     useDarkTheme: Boolean,
     isAmoled: Boolean,
@@ -368,15 +376,24 @@ fun MediaPage(
                                                 )
                                             }
                                             if (viewModel.isAnime) {
-                                                val allEpisodeTitles = remember(media) {
-                                                    (listOfNotNull(media.title) + media.otherTitles)
-                                                        .filter { it.isNotBlank() }
-                                                        .distinct()
-                                                }
-                                                MediaEpisodesSection(
-                                                    titles = allEpisodeTitles,
-                                                    fallbackThumbnail = media.bannerImage ?: media.coverImage,
-                                                    onNavigateToPlayer = onNavigateToPlayer,
+                                                MediaEpisodesBanner(
+                                                    episodesCount = media.episodes,
+                                                    onClick = {
+                                                        val otherTitlesJson = try {
+                                                            val arr = org.json.JSONArray()
+                                                            media.otherTitles.forEach { arr.put(it) }
+                                                            arr.toString()
+                                                        } catch (_: Exception) { "[]" }
+
+                                                        onNavigateToEpisodes(
+                                                            EpisodesRoute(
+                                                                animeId = media.id,
+                                                                animeTitle = media.title.orEmpty(),
+                                                                otherTitlesJson = otherTitlesJson,
+                                                                fallbackThumbnail = media.bannerImage ?: media.coverImage ?: "",
+                                                            )
+                                                        )
+                                                    },
                                                     modifier = Modifier
                                                         .skipToLookaheadSize()
                                                         .fillMaxWidth()
@@ -1558,6 +1575,120 @@ private fun LoadingMediaGenres(modifier: Modifier = Modifier) {
                     .background(MaterialTheme.colorScheme.primaryContainer.copy(0.2f))
                     .padding(horizontal = LocalPaddings.current.small)
             )
+        }
+    }
+}
+
+@Composable
+private fun MediaEpisodesBanner(
+    episodesCount: Int?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Card(
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+        ),
+        border = BorderStroke(
+            width = 0.5.dp,
+            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)
+        ),
+        modifier = modifier
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onClick),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.weight(1f, fill = false),
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(46.dp)
+                        .clip(RoundedCornerShape(14.dp))
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.tv),
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp),
+                    )
+                }
+
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            text = stringResource(R.string.episodes),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface,
+                        )
+                        if (episodesCount != null && episodesCount > 0) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
+                                    .padding(horizontal = 8.dp, vertical = 2.dp),
+                            ) {
+                                Text(
+                                    text = "$episodesCount",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                        }
+                    }
+
+                    Text(
+                        text = stringResource(R.string.available_to_watch),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            // Prominent Action Button
+            Button(
+                onClick = onClick,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                ),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PlayArrow,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp),
+                    )
+                    Text(
+                        text = stringResource(R.string.watch_episodes),
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
         }
     }
 }

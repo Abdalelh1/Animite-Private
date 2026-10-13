@@ -180,5 +180,9 @@
     <string name="sort_oldest_first">الأقدم أولاً</string>
     <string name="sort_newest_first">الأحدث أولاً</string>
     <string name="no_episodes_found_for_anime">لم يتم العثور على حلقات لهذا الأنمي</string>
+    <string name="watch_episodes">مشاهدة الحلقات</string>
+    <string name="view_all_episodes">عرض الحلقات</string>
+    <string name="episodes_count_label">%1$d حلقة متوفرة</string>
+    <string name="available_to_watch">متوفر للمشاهدة الآن</string>
 </resources>
 

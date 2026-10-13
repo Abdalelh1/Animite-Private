@@ -58,9 +58,11 @@ import com.imashnake.animite.theme.AnimiteTheme
 import com.imashnake.animite.theme.cairoFontFamily
 import com.imashnake.animite.theme.manropeFontFamily
 import com.imashnake.animite.manga.MangaScreen
+import com.imashnake.animite.media.EpisodesPage
 import com.imashnake.animite.media.MediaPage
 import com.imashnake.animite.media.player.VideoPlayerScreen
 import com.imashnake.animite.navigation.AnimeRoute
+import com.imashnake.animite.navigation.EpisodesRoute
 import com.imashnake.animite.navigation.ExploreRoute
 import com.imashnake.animite.navigation.MangaRoute
 import com.imashnake.animite.navigation.VideoPlayerRoute
@@ -241,11 +243,20 @@ fun MainScreen(
                             onNavigateToMediaItem = navController::navigate,
                             onNavigateToExplore = navController::navigate,
                             onNavigateToPlayer = navController::navigate,
+                            onNavigateToEpisodes = navController::navigate,
                             useDarkTheme = useDarkTheme,
                             isAmoled = isAmoled,
                             deviceScreenCornerRadius = deviceScreenCornerRadius,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedVisibilityScope = this,
+                        )
+                    }
+                    composable<EpisodesRoute> { backStackEntry ->
+                        val episodesRoute = backStackEntry.toRoute<EpisodesRoute>()
+                        EpisodesPage(
+                            route = episodesRoute,
+                            onBack = navController::navigateUp,
+                            onNavigateToPlayer = navController::navigate,
                         )
                     }
                     composable<VideoPlayerRoute> { backStackEntry ->
@@ -336,7 +347,8 @@ fun MainScreen(
         }
 
         val isVideoPlayer = currentBackStackEntry?.destination?.hasRoute<VideoPlayerRoute>() == true
-        if (!isVideoPlayer) {
+        val isEpisodesPage = currentBackStackEntry?.destination?.hasRoute<EpisodesRoute>() == true
+        if (!isVideoPlayer && !isEpisodesPage) {
             SearchFrontDrop(
                 hasExtraPadding = isNavBarVisible &&
                         LocalConfiguration.current.orientation == Configuration.ORIENTATION_PORTRAIT,
@@ -351,7 +363,7 @@ fun MainScreen(
                 },
                 isFabVisible = currentBackStackEntry?.destination?.hasRoute<SettingsPage>() == false
                         && currentBackStackEntry?.destination?.hasRoute<ExploreRoute>() == false
-                        && !isVideoPlayer,
+                        && !isVideoPlayer && !isEpisodesPage,
                 modifier = Modifier
                     .align(Alignment.BottomEnd)
                     .padding(

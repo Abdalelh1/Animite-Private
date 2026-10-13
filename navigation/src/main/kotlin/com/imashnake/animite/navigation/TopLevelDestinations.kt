@@ -43,3 +43,11 @@ data class VideoPlayerRoute(
     val providerId: String = "",
 )
 
+@Serializable
+data class EpisodesRoute(
+    val animeId: Int,
+    val animeTitle: String,
+    val otherTitlesJson: String = "[]",
+    val fallbackThumbnail: String = "",
+)
+
