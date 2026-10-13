@@ -37,12 +37,14 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
@@ -89,6 +91,8 @@ import com.imashnake.animite.media.source.StreamLinkType
 import com.imashnake.animite.navigation.EpisodesRoute
 import com.imashnake.animite.navigation.VideoPlayerRoute
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -137,6 +141,8 @@ fun EpisodesPage(
     var isFetchingServers by remember { mutableStateOf(false) }
     var servers by remember { mutableStateOf<List<AnimeStreamServer>>(emptyList()) }
     var showServerDialog by remember { mutableStateOf(false) }
+    var resolveErrorMessage by remember { mutableStateOf<String?>(null) }
+    var currentResolveJob by remember { mutableStateOf<Job?>(null) }
 
     // Range pagination & search states
     var selectedRangeIndex by remember { mutableIntStateOf(0) }
@@ -585,28 +591,36 @@ fun EpisodesPage(
                                     .clip(RoundedCornerShape(14.dp))
                                     .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
                                     .clickable {
-                                        val prov = activeProvider ?: EpisodeSourcesManager.providers.first()
+                                        currentResolveJob?.cancel()
                                         selectedEpisode = ep
                                         isFetchingServers = true
+                                        resolveErrorMessage = null
 
-                                        coroutineScope.launch {
+                                        currentResolveJob = coroutineScope.launch {
                                             try {
-                                                val sList = withContext(Dispatchers.IO) {
-                                                    prov.getStreamServers(ep.url)
+                                                val resolved = withContext(Dispatchers.IO) {
+                                                    EpisodeSourcesManager.resolveStreamServersWithFallback(
+                                                        episode = ep,
+                                                        preferredProviderId = activeProvider?.id,
+                                                    )
                                                 }
-                                                servers = sList
 
-                                                val directStreams = sList.filter {
-                                                    it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
-                                                }.distinctBy { it.quality }
+                                                if (!isActive) return@launch
 
-                                                val chosenStream = directStreams.firstOrNull { it.quality.contains("1080", true) }
-                                                    ?: directStreams.firstOrNull { it.quality.contains("720", true) }
-                                                    ?: directStreams.firstOrNull { it.quality.contains("HD", true) }
-                                                    ?: directStreams.firstOrNull()
-                                                    ?: sList.firstOrNull()
+                                                if (resolved.success && resolved.servers.isNotEmpty()) {
+                                                    val sList = resolved.servers
+                                                    servers = sList
 
-                                                if (chosenStream != null) {
+                                                    val directStreams = sList.filter {
+                                                        it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
+                                                    }.distinctBy { it.quality }
+
+                                                    val chosenStream = directStreams.firstOrNull { it.quality.contains("1080", true) }
+                                                        ?: directStreams.firstOrNull { it.quality.contains("720", true) }
+                                                        ?: directStreams.firstOrNull { it.quality.contains("HD", true) }
+                                                        ?: directStreams.firstOrNull()
+                                                        ?: sList.first()
+
                                                     EpisodeSessionRepository.setActiveEpisodes(episodes)
                                                     EpisodeSessionRepository.setActiveServers(sList)
                                                     onNavigateToPlayer(
@@ -617,18 +631,20 @@ fun EpisodesPage(
                                                             initialUrl = chosenStream.url,
                                                             serversJson = SourceJsonParser.encodeServers(sList),
                                                             episodesJson = SourceJsonParser.encodeEpisodes(episodes),
-                                                            providerId = prov.id,
+                                                            providerId = resolved.winningProviderId.ifEmpty { activeProvider?.id ?: "anime4up" },
                                                         )
                                                     )
                                                 } else {
-                                                    showServerDialog = true
+                                                    resolveErrorMessage = resolved.errorMessage ?: "تعذر تشغيل هذه الحلقة من أي مصدر متاح"
                                                 }
                                             } catch (e: Exception) {
+                                                if (!isActive) return@launch
                                                 Log.e("ANIMITE_DIAG", "GET_SERVERS_ERROR: ${e.message}")
-                                                servers = emptyList()
-                                                showServerDialog = true
+                                                resolveErrorMessage = "حدث خطأ أثناء استخراج رابط الحلقة، يرجى المحاولة لاحقاً"
                                             } finally {
-                                                isFetchingServers = false
+                                                if (isActive) {
+                                                    isFetchingServers = false
+                                                }
                                             }
                                         }
                                     },
@@ -725,7 +741,10 @@ fun EpisodesPage(
 
     // Loading Servers Dialog
     if (isFetchingServers) {
-        Dialog(onDismissRequest = { isFetchingServers = false }) {
+        Dialog(onDismissRequest = {
+            currentResolveJob?.cancel()
+            isFetchingServers = false
+        }) {
             Card(
                 shape = RoundedCornerShape(18.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -751,13 +770,12 @@ fun EpisodesPage(
         }
     }
 
-    // Quality Selection Dialog
-    if (showServerDialog && selectedEpisode != null) {
-        val epNumStr = selectedEpisode?.let { ep ->
-            if (ep.number % 1.0f == 0.0f) ep.number.toInt().toString() else ep.number.toString()
-        } ?: ""
+    // Error & Retry Dialog when episode resolution fails across all sources
+    if (resolveErrorMessage != null && selectedEpisode != null) {
+        val failedEp = selectedEpisode!!
+        val epNumStr = if (failedEp.number % 1.0f == 0.0f) failedEp.number.toInt().toString() else failedEp.number.toString()
 
-        Dialog(onDismissRequest = { showServerDialog = false }) {
+        Dialog(onDismissRequest = { resolveErrorMessage = null }) {
             Card(
                 shape = RoundedCornerShape(20.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -766,116 +784,94 @@ fun EpisodesPage(
                     .padding(16.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
+                    Text(
+                        text = "تعذر تشغيل الحلقة $epNumStr",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.error,
+                        textAlign = TextAlign.Center,
+                    )
+
+                    Text(
+                        text = resolveErrorMessage ?: "لم نتمكن من العثور على رابط صالح للتشغيل من أي مصدر متوفر.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
                     ) {
-                        Column {
-                            Text(
-                                text = stringResource(R.string.select_quality),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                            Text(
-                                text = stringResource(R.string.episode_label, epNumStr),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
+                        Button(
+                            onClick = {
+                                resolveErrorMessage = null
+                                isFetchingServers = true
+                                currentResolveJob = coroutineScope.launch {
+                                    try {
+                                        val resolved = withContext(Dispatchers.IO) {
+                                            EpisodeSourcesManager.resolveStreamServersWithFallback(
+                                                episode = failedEp,
+                                                preferredProviderId = activeProvider?.id,
+                                            )
+                                        }
 
-                        IconButton(onClick = { showServerDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Default.Close,
-                                contentDescription = stringResource(R.string.back),
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
+                                        if (!isActive) return@launch
 
-                    val directStreams = remember(servers) {
-                        servers.filter { it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO }
-                            .distinctBy { it.quality }
-                    }
+                                        if (resolved.success && resolved.servers.isNotEmpty()) {
+                                            val sList = resolved.servers
+                                            val directStreams = sList.filter {
+                                                it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
+                                            }.distinctBy { it.quality }
 
-                    if (directStreams.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.no_playable_quality),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 16.dp),
-                        )
-                    } else {
-                        Column(
-                            verticalArrangement = Arrangement.spacedBy(10.dp),
-                        ) {
-                            directStreams.forEach { stream ->
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(14.dp))
-                                        .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
-                                        .clickable {
-                                            val prov = activeProvider ?: EpisodeSourcesManager.providers.first()
+                                            val chosenStream = directStreams.firstOrNull { it.quality.contains("1080", true) }
+                                                ?: directStreams.firstOrNull { it.quality.contains("720", true) }
+                                                ?: directStreams.firstOrNull { it.quality.contains("HD", true) }
+                                                ?: directStreams.firstOrNull()
+                                                ?: sList.first()
+
                                             EpisodeSessionRepository.setActiveEpisodes(episodes)
-                                            EpisodeSessionRepository.setActiveServers(directStreams)
-                                            showServerDialog = false
+                                            EpisodeSessionRepository.setActiveServers(sList)
                                             onNavigateToPlayer(
                                                 VideoPlayerRoute(
                                                     animeTitle = matchedAnime?.title ?: route.animeTitle,
                                                     episodeNumber = epNumStr,
-                                                    initialQuality = stream.quality,
-                                                    initialUrl = stream.url,
-                                                    serversJson = SourceJsonParser.encodeServers(directStreams),
+                                                    initialQuality = chosenStream.quality,
+                                                    initialUrl = chosenStream.url,
+                                                    serversJson = SourceJsonParser.encodeServers(sList),
                                                     episodesJson = SourceJsonParser.encodeEpisodes(episodes),
-                                                    providerId = prov.id,
+                                                    providerId = resolved.winningProviderId.ifEmpty { activeProvider?.id ?: "anime4up" },
                                                 )
                                             )
+                                        } else {
+                                            resolveErrorMessage = resolved.errorMessage ?: "تعذر تشغيل هذه الحلقة من أي مصدر متاح"
                                         }
-                                        .padding(horizontal = 16.dp, vertical = 14.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp),
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.PlayArrow,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(24.dp),
-                                        )
-                                        Text(
-                                            text = stream.quality,
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.SemiBold,
-                                            color = MaterialTheme.colorScheme.onSurface,
-                                        )
-                                    }
-
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(RoundedCornerShape(6.dp))
-                                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                                            .padding(horizontal = 10.dp, vertical = 4.dp),
-                                    ) {
-                                        Text(
-                                            text = "HD",
-                                            style = MaterialTheme.typography.labelSmall,
-                                            color = MaterialTheme.colorScheme.primary,
-                                            fontWeight = FontWeight.Bold,
-                                        )
+                                    } catch (e: Exception) {
+                                        if (!isActive) return@launch
+                                        resolveErrorMessage = "حدث خطأ أثناء استخراج رابط الحلقة"
+                                    } finally {
+                                        if (isActive) {
+                                            isFetchingServers = false
+                                        }
                                     }
                                 }
-                            }
+                            },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Text("إعادة المحاولة")
+                        }
+
+                        OutlinedButton(
+                            onClick = { resolveErrorMessage = null },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                        ) {
+                            Text("إلغاء")
                         }
                     }
                 }

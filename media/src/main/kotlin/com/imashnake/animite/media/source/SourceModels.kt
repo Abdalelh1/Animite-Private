@@ -11,6 +11,14 @@ enum class StreamLinkType {
 }
 
 @Serializable
+enum class EpisodeType {
+    REGULAR,
+    SPECIAL,
+    OVA,
+    RECAP,
+}
+
+@Serializable
 data class AnimeSearchResult(
     val id: String,
     val title: String,
@@ -19,11 +27,22 @@ data class AnimeSearchResult(
 )
 
 @Serializable
+data class EpisodeSourceReference(
+    val providerId: String,
+    val episodeUrl: String,
+    val qualityHint: String? = null,
+    val sourceName: String? = null,
+)
+
+@Serializable
 data class AnimeEpisode(
     val number: Float,
     val title: String? = null,
-    val url: String,
+    val url: String = "",
     val thumbnail: String? = null,
+    val episodeType: EpisodeType = EpisodeType.REGULAR,
+    val seasonNumber: Int = 1,
+    val sources: List<EpisodeSourceReference> = emptyList(),
 )
 
 @Serializable

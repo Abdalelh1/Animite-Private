@@ -16,6 +16,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.AspectRatioFrameLayout
 import com.imashnake.animite.media.player.cache.MediaCacheManager
+import com.imashnake.animite.media.source.AnimeEpisode
 import com.imashnake.animite.media.source.AnimeStreamServer
 import com.imashnake.animite.media.source.EpisodeSourcesManager
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +35,14 @@ data class MediaTrackUiModel(
     val trackIndex: Int,
     val name: String,
     val language: String? = null,
+    val isSelected: Boolean = false,
+)
+
+data class VideoTrackUiModel(
+    val groupIndex: Int,
+    val trackIndex: Int,
+    val name: String,
+    val height: Int,
     val isSelected: Boolean = false,
 )
 
@@ -69,6 +78,12 @@ class VideoPlayerViewModel @Inject constructor(
     private val _audioTracks = MutableStateFlow<List<MediaTrackUiModel>>(emptyList())
     val audioTracks = _audioTracks.asStateFlow()
 
+    private val _videoTracks = MutableStateFlow<List<VideoTrackUiModel>>(emptyList())
+    val videoTracks = _videoTracks.asStateFlow()
+
+    private val _isVideoAdaptiveAuto = MutableStateFlow(true)
+    val isVideoAdaptiveAuto = _isVideoAdaptiveAuto.asStateFlow()
+
     private val _isScreenLocked = MutableStateFlow(false)
     val isScreenLocked = _isScreenLocked.asStateFlow()
 
@@ -101,6 +116,35 @@ class VideoPlayerViewModel @Inject constructor(
             exoPlayerInstance?.pause()
             _sleepTimerMinutes.value = null
             _sleepTimerSecondsLeft.value = null
+        }
+    }
+
+    fun loadEpisodeStreamWithFallback(
+        episode: AnimeEpisode,
+        preferredProviderId: String? = null,
+        failedProviderIds: Set<String> = emptySet(),
+        onSuccess: (List<AnimeStreamServer>, String) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val result = EpisodeSourcesManager.resolveStreamServersWithFallback(
+                    episode = episode,
+                    preferredProviderId = preferredProviderId,
+                    failedProviderIds = failedProviderIds,
+                )
+                withContext(Dispatchers.Main) {
+                    if (result.success && result.servers.isNotEmpty()) {
+                        onSuccess(result.servers, result.winningProviderId)
+                    } else {
+                        onError(result.errorMessage ?: "تعذر تشغيل الحلقة من جميع المصادر المتاحة")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onError(e.localizedMessage ?: "حدث خطأ أثناء الاتصال بمصادر التشغيل")
+                }
+            }
         }
     }
 
@@ -164,9 +208,36 @@ class VideoPlayerViewModel @Inject constructor(
         val tracks = player.currentTracks
         val subs = mutableListOf<MediaTrackUiModel>()
         val audios = mutableListOf<MediaTrackUiModel>()
+        val videos = mutableListOf<VideoTrackUiModel>()
 
         tracks.groups.forEachIndexed { groupIndex, group ->
             when (group.type) {
+                C.TRACK_TYPE_VIDEO -> {
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val height = format.height
+                        val label = when {
+                            height >= 2160 -> "4K (2160p)"
+                            height >= 1440 -> "2K (1440p)"
+                            height >= 1080 -> "1080p FHD"
+                            height >= 720 -> "720p HD"
+                            height >= 480 -> "480p SD"
+                            height >= 360 -> "360p"
+                            height > 0 -> "${height}p"
+                            !format.label.isNullOrBlank() -> format.label!!
+                            else -> "جودة ${videos.size + 1}"
+                        }
+                        videos.add(
+                            VideoTrackUiModel(
+                                groupIndex = groupIndex,
+                                trackIndex = i,
+                                name = label,
+                                height = height,
+                                isSelected = group.isTrackSelected(i),
+                            )
+                        )
+                    }
+                }
                 C.TRACK_TYPE_TEXT -> {
                     for (i in 0 until group.length) {
                         val format = group.getTrackFormat(i)
@@ -202,8 +273,31 @@ class VideoPlayerViewModel @Inject constructor(
                 else -> {}
             }
         }
+        videos.sortBy { it.height }
+        _videoTracks.value = videos.distinctBy { it.name }
+        _isVideoAdaptiveAuto.value = videos.none { it.isSelected }
         _subtitleTracks.value = subs
         _audioTracks.value = audios
+    }
+
+    fun selectVideoTrack(track: VideoTrackUiModel?) {
+        val player = exoPlayerInstance ?: return
+        if (track == null) {
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                .build()
+            _isVideoAdaptiveAuto.value = true
+        } else {
+            val group = player.currentTracks.groups.getOrNull(track.groupIndex) ?: return
+            val override = TrackSelectionOverride(group.mediaTrackGroup, track.trackIndex)
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .setOverrideForType(override)
+                .build()
+            _isVideoAdaptiveAuto.value = false
+        }
+        updateTracksFromPlayer()
     }
 
     fun selectSubtitleTrack(track: MediaTrackUiModel?) {

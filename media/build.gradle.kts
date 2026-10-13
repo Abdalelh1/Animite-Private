@@ -16,6 +16,10 @@ android {
         }
     }
 
+    testOptions {
+        unitTests.isReturnDefaultValues = true
+    }
+
     buildFeatures { compose = true }
 
     namespace = "com.imashnake.animite.media"
@@ -84,6 +88,8 @@ dependencies {
     implementation(libs.jsoup)
     implementation(libs.ktor.core)
     implementation(libs.ktor.cio)
+
+    testImplementation(libs.test.junit)
 }
 
 detekt {

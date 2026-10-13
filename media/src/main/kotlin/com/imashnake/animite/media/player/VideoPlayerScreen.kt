@@ -105,6 +105,7 @@ import androidx.media3.ui.PlayerView
 import com.imashnake.animite.core.ui.LocalPaddings
 import com.imashnake.animite.media.R
 import com.imashnake.animite.media.player.cache.MediaCacheManager
+import com.imashnake.animite.media.source.AnimeEpisode
 import com.imashnake.animite.media.source.AnimeStreamServer
 import com.imashnake.animite.media.source.EpisodeJsonCache
 import com.imashnake.animite.media.source.EpisodeSessionRepository
@@ -279,32 +280,38 @@ fun VideoPlayerScreen(
     val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
     val sleepTimerSecondsLeft by viewModel.sleepTimerSecondsLeft.collectAsState()
 
-    // Helper to switch to episode
+    // Helper to switch to episode with fallback
     fun switchToEpisode(item: EpisodeUiModel) {
         activeEpisodeNumber = item.number
-        if (route.providerId.isNotEmpty() && item.url.isNotEmpty()) {
-            isBuffering = true
-            viewModel.loadEpisodeStream(
-                providerId = route.providerId,
-                episodeUrl = item.url,
-                onSuccess = { servers ->
-                    val direct = servers.filter { it.isDirectVideo && it.url.isNotEmpty() }
-                    if (direct.isNotEmpty()) {
-                        currentServers = direct
-                        val chosen = direct.firstOrNull { it.quality == selectedQuality } ?: direct.first()
-                        viewModel.prepareMedia(chosen, positionMs = 0L, playWhenReady = true)
-                    } else {
-                        isBuffering = false
-                    }
-                },
-                onError = { err ->
-                    playerError = err
+        isBuffering = true
+        playerError = null
+
+        val fullEp = EpisodeSessionRepository.getActiveEpisodes().firstOrNull {
+            val nStr = if (it.number % 1.0f == 0.0f) it.number.toInt().toString() else it.number.toString()
+            nStr == item.number
+        } ?: AnimeEpisode(number = item.number.toFloatOrNull() ?: 1f, url = item.url)
+
+        viewModel.loadEpisodeStreamWithFallback(
+            episode = fullEp,
+            preferredProviderId = route.providerId,
+            onSuccess = { servers, _ ->
+                val direct = servers.filter { it.isDirectVideo && it.url.isNotEmpty() }
+                val streamList = if (direct.isNotEmpty()) direct else servers
+                if (streamList.isNotEmpty()) {
+                    currentServers = streamList
+                    val chosen = streamList.firstOrNull { it.quality == selectedQuality } ?: streamList.first()
+                    viewModel.prepareMedia(chosen, positionMs = 0L, playWhenReady = true)
+                    playerError = null
+                } else {
+                    playerError = "لا يوجد رابط تشغيل متاح لهذه الحلقة"
                     isBuffering = false
                 }
-            )
-        } else {
-            exoPlayer.seekTo(0L)
-        }
+            },
+            onError = { err ->
+                playerError = err
+                isBuffering = false
+            }
+        )
     }
 
     fun hasPreviousEpisode(): Boolean {
@@ -352,8 +359,49 @@ fun VideoPlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو، تحقق من الرابط أو الاتصال"
-                isBuffering = false
+                val otherServers = currentServers.filter { it.url != activeServer.url }
+                if (otherServers.isNotEmpty()) {
+                    currentServers = otherServers
+                    val next = otherServers.first()
+                    selectedQuality = next.quality
+                    viewModel.prepareMedia(next, positionMs = currentPosition, playWhenReady = true)
+                    return
+                }
+
+                // If all current servers fail, attempt fallback resolution across other sources
+                val fullEp = EpisodeSessionRepository.getActiveEpisodes().firstOrNull {
+                    val nStr = if (it.number % 1.0f == 0.0f) it.number.toInt().toString() else it.number.toString()
+                    nStr == activeEpisodeNumber
+                }
+
+                if (fullEp != null && fullEp.sources.size > 1) {
+                    isBuffering = true
+                    viewModel.loadEpisodeStreamWithFallback(
+                        episode = fullEp,
+                        failedProviderIds = setOf(route.providerId),
+                        onSuccess = { newServers, _ ->
+                            val direct = newServers.filter { it.isDirectVideo && it.url.isNotEmpty() }
+                            val streamList = if (direct.isNotEmpty()) direct else newServers
+                            if (streamList.isNotEmpty()) {
+                                currentServers = streamList
+                                val chosen = streamList.first()
+                                selectedQuality = chosen.quality
+                                viewModel.prepareMedia(chosen, positionMs = currentPosition, playWhenReady = true)
+                                playerError = null
+                            } else {
+                                playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو"
+                                isBuffering = false
+                            }
+                        },
+                        onError = {
+                            playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو، تحقق من الرابط أو الاتصال"
+                            isBuffering = false
+                        }
+                    )
+                } else {
+                    playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو، تحقق من الرابط أو الاتصال"
+                    isBuffering = false
+                }
             }
         }
         exoPlayer.addListener(listener)
@@ -1643,15 +1691,114 @@ fun VideoPlayerScreen(
                         }
                     }
 
-                    if (currentServers.isEmpty()) {
-                        Text(
-                            text = stringResource(R.string.no_playable_quality),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 12.dp),
-                        )
-                    } else {
-                        currentServers.forEach { server ->
+                    val videoTracks by viewModel.videoTracks.collectAsState()
+                    val isVideoAdaptiveAuto by viewModel.isVideoAdaptiveAuto.collectAsState()
+
+                    if (videoTracks.isNotEmpty()) {
+                        // 1. Auto track (adaptive)
+                        val isAutoSelected = isVideoAdaptiveAuto
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isAutoSelected) {
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                            },
+                            border = if (isAutoSelected) {
+                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                            } else null,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.selectVideoTrack(null)
+                                    selectedQuality = "Auto"
+                                    showQualityDialog = false
+                                },
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Text(
+                                    text = "تلقائي (Auto)",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isAutoSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                )
+                                if (isAutoSelected) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp),
+                                    )
+                                }
+                            }
+                        }
+
+                        // 2. Discovered resolution tracks, sorted lowest to highest
+                        videoTracks.sortedBy { it.height }.forEach { track ->
+                            val isSelected = !isAutoSelected && track.isSelected
+                            Surface(
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) {
+                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+                                },
+                                border = if (isSelected) {
+                                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                                } else null,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        viewModel.selectVideoTrack(track)
+                                        selectedQuality = track.name
+                                        showQualityDialog = false
+                                    },
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically,
+                                ) {
+                                    Text(
+                                        text = track.name,
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                    )
+                                    if (isSelected) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Check,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp),
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    } else if (currentServers.isNotEmpty()) {
+                        // For separate direct video links, sort from lowest to highest and deduplicate
+                        val sortedServers = currentServers
+                            .distinctBy { it.quality }
+                            .sortedBy { server ->
+                                val q = server.quality.lowercase()
+                                when {
+                                    q.contains("360") -> 360
+                                    q.contains("480") || q.contains("sd") -> 480
+                                    q.contains("720") -> 720
+                                    q.contains("1080") -> 1080
+                                    q.contains("1440") || q.contains("2k") -> 1440
+                                    q.contains("2160") || q.contains("4k") -> 2160
+                                    q.contains("hd") -> 720
+                                    else -> 500
+                                }
+                            }
+
+                        sortedServers.forEach { server ->
                             val isSelected = server.quality == selectedQuality
                             Surface(
                                 shape = RoundedCornerShape(12.dp),
@@ -1694,6 +1841,13 @@ fun VideoPlayerScreen(
                                 }
                             }
                         }
+                    } else {
+                        Text(
+                            text = stringResource(R.string.no_playable_quality),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
                     }
                 }
             }
