@@ -48,7 +48,7 @@ object SourceJsonParser {
 }
 
 object EpisodeJsonCache {
-    private const val CACHE_DIR_NAME = "episodes_json_cache"
+    private const val CACHE_DIR_NAME = "episodes_json_cache_v3"
     private const val CACHE_EXPIRATION_MS = 6 * 60 * 60 * 1000L // 6 hours
 
     fun getCachedEpisodes(context: Context, titles: List<String>): CachedAnimeEpisodes? {

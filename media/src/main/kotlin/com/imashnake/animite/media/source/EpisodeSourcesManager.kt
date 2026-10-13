@@ -5,6 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Locale
 
@@ -13,6 +14,7 @@ data class AggregatedEpisodesResult(
     val episodes: List<AnimeEpisode>,
     val provider: EpisodeSourceProvider,
     val participatingProviders: List<EpisodeSourceProvider> = emptyList(),
+    val providerEpisodesMap: Map<String, List<AnimeEpisode>> = emptyMap(),
 )
 
 data class ResolvedPlaybackResult(
@@ -113,11 +115,17 @@ object EpisodeSourcesManager {
         val unifiedEpisodes = unifyAndDeduplicateEpisodes(successfulBatches)
         Log.d("ANIMITE_DIAG", "AGGREGATOR_MERGED: total unified episodes count=${unifiedEpisodes.size} across ${successfulBatches.size} sources")
 
+        val providerEpisodesMap = mutableMapOf<String, List<AnimeEpisode>>()
+        for (batch in successfulBatches) {
+            providerEpisodesMap[batch.provider.id] = batch.episodes
+        }
+
         AggregatedEpisodesResult(
             matchedAnime = bestBatch.match,
             episodes = unifiedEpisodes,
             provider = bestBatch.provider,
             participatingProviders = successfulBatches.map { it.provider }.distinctBy { it.id },
+            providerEpisodesMap = providerEpisodesMap,
         )
     }
 
@@ -144,7 +152,6 @@ object EpisodeSourcesManager {
                 val epType = detectEpisodeType(ep)
                 val epSeason = if (ep.seasonNumber > 1) ep.seasonNumber else detectedSeason
                 val normalizedNum = normalizeEpisodeNumber(ep.number)
-
                 val key = EpisodeIdentity(
                     seasonNumber = epSeason,
                     episodeType = epType,
@@ -326,13 +333,14 @@ object EpisodeSourcesManager {
     }
 
     private fun detectEpisodeType(ep: AnimeEpisode): EpisodeType {
+        if (ep.episodeType != EpisodeType.REGULAR) return ep.episodeType
         val title = ep.title?.lowercase(Locale.ROOT) ?: ""
         val url = ep.url.lowercase(Locale.ROOT)
         return when {
-            title.contains("ova") || url.contains("ova") || title.contains("أوفا") -> EpisodeType.OVA
-            title.contains("special") || url.contains("special") || title.contains("خاصة") || title.contains("حلقة خاصة") -> EpisodeType.SPECIAL
-            title.contains("recap") || url.contains("recap") || title.contains("ملخص") -> EpisodeType.RECAP
-            else -> ep.episodeType
+            Regex("""\b(ova|أوفا|اوفا)\b""").containsMatchIn(title) || url.contains("/ova/") -> EpisodeType.OVA
+            Regex("""\b(special|حلقة\s*خاصة)\b""").containsMatchIn(title) || url.contains("/special/") -> EpisodeType.SPECIAL
+            Regex("""\b(recap|ملخص)\b""").containsMatchIn(title) || url.contains("/recap/") -> EpisodeType.RECAP
+            else -> EpisodeType.REGULAR
         }
     }
 
@@ -349,6 +357,22 @@ object EpisodeSourcesManager {
             EpisodeType.OVA -> "أوفا $numStr"
             EpisodeType.RECAP -> "ملخص $numStr"
         }
+    }
+
+    suspend fun fetchEpisodesForSingleProvider(
+        provider: EpisodeSourceProvider,
+        titles: List<String>
+    ): Pair<AnimeSearchResult?, List<AnimeEpisode>> = withContext(Dispatchers.IO) {
+        try {
+            val (match, _) = autoFindAnime(provider, titles)
+            if (match != null) {
+                val eps = provider.getEpisodes(match.url)
+                return@withContext Pair(match, eps)
+            }
+        } catch (e: Exception) {
+            Log.e("ANIMITE_DIAG", "FETCH_SINGLE_PROVIDER_FAIL for ${provider.id}: ${e.message}")
+        }
+        Pair(null, emptyList())
     }
 
     suspend fun autoFindAnime(provider: EpisodeSourceProvider, titles: List<String>): Pair<AnimeSearchResult?, List<AnimeSearchResult>> {

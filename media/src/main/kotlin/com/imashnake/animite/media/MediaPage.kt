@@ -323,6 +323,18 @@ fun MediaPage(
                                                             arr.toString()
                                                         } catch (_: Exception) { "[]" }
 
+                                                        val streamingEpisodesJson = try {
+                                                            val obj = org.json.JSONObject()
+                                                            media.streamingEpisodes.forEach { ep ->
+                                                                val num = ep.number
+                                                                val thumb = ep.thumbnail
+                                                                if (!num.isNullOrBlank() && !thumb.isNullOrBlank()) {
+                                                                    obj.put(num, thumb)
+                                                                }
+                                                            }
+                                                            obj.toString()
+                                                        } catch (_: Exception) { "{}" }
+
                                                         onNavigateToEpisodes(
                                                             EpisodesRoute(
                                                                 animeId = media.id,
@@ -334,6 +346,7 @@ fun MediaPage(
                                                                 coverImage = media.coverImage,
                                                                 totalEpisodes = media.episodes,
                                                                 seasonYear = media.year,
+                                                                streamingEpisodesJson = streamingEpisodesJson,
                                                             )
                                                         )
                                                     },
@@ -440,6 +453,18 @@ fun MediaPage(
                                                             arr.toString()
                                                         } catch (_: Exception) { "[]" }
 
+                                                        val streamingEpisodesJson = try {
+                                                            val obj = org.json.JSONObject()
+                                                            media.streamingEpisodes.forEach { ep ->
+                                                                val num = ep.number
+                                                                val thumb = ep.thumbnail
+                                                                if (!num.isNullOrBlank() && !thumb.isNullOrBlank()) {
+                                                                    obj.put(num, thumb)
+                                                                }
+                                                            }
+                                                            obj.toString()
+                                                        } catch (_: Exception) { "{}" }
+
                                                         onNavigateToEpisodes(
                                                             EpisodesRoute(
                                                                 animeId = media.id,
@@ -451,6 +476,7 @@ fun MediaPage(
                                                                 coverImage = media.coverImage,
                                                                 totalEpisodes = media.episodes,
                                                                 seasonYear = media.year,
+                                                                streamingEpisodesJson = streamingEpisodesJson,
                                                             )
                                                         )
                                                     },

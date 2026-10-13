@@ -144,6 +144,28 @@ fun EpisodesPage(
     var resolveErrorMessage by remember { mutableStateOf<String?>(null) }
     var currentResolveJob by remember { mutableStateOf<Job?>(null) }
 
+    val anilistThumbnails = remember(route.streamingEpisodesJson) {
+        val map = mutableMapOf<String, String>()
+        try {
+            if (route.streamingEpisodesJson.isNotBlank() && route.streamingEpisodesJson != "{}") {
+                val obj = org.json.JSONObject(route.streamingEpisodesJson)
+                val keys = obj.keys()
+                while (keys.hasNext()) {
+                    val key = keys.next()
+                    val url = obj.optString(key)
+                    if (url.isNotBlank()) {
+                        map[key] = url
+                    }
+                }
+            }
+        } catch (_: Exception) {}
+        map
+    }
+
+    var selectedProviderTab by remember { mutableStateOf("all") }
+    var providerEpisodesMap by remember { mutableStateOf<Map<String, List<AnimeEpisode>>>(emptyMap()) }
+    var isCheckingProvider by remember { mutableStateOf<String?>(null) }
+
     // Range pagination & search states
     var selectedRangeIndex by remember { mutableIntStateOf(0) }
     var isDescendingOrder by remember { mutableStateOf(false) }
@@ -184,6 +206,7 @@ fun EpisodesPage(
                     matchedAnime = aggResult.matchedAnime
                     episodes = aggResult.episodes
                     activeProvider = aggResult.provider
+                    providerEpisodesMap = aggResult.providerEpisodesMap
 
                     // Save to local JSON cache for instant future loads
                     EpisodeJsonCache.saveEpisodes(
@@ -207,18 +230,27 @@ fun EpisodesPage(
         }
     }
 
-    // Sort episodes according to order preference
-    val sortedEpisodes = remember(episodes, isDescendingOrder) {
-        if (isDescendingOrder) {
-            episodes.sortedByDescending { it.number }
+    // Current source episodes
+    val currentSourceEpisodes = remember(selectedProviderTab, episodes, providerEpisodesMap) {
+        if (selectedProviderTab == "all") {
+            episodes
         } else {
-            episodes.sortedBy { it.number }
+            providerEpisodesMap[selectedProviderTab] ?: emptyList()
+        }
+    }
+
+    // Sort episodes according to order preference
+    val sortedEpisodes = remember(currentSourceEpisodes, isDescendingOrder) {
+        if (isDescendingOrder) {
+            currentSourceEpisodes.sortedByDescending { it.number }
+        } else {
+            currentSourceEpisodes.sortedBy { it.number }
         }
     }
 
     // Chunk size: 100 episodes per range (or 50 if <= 100)
-    val chunkSize = remember(episodes.size) {
-        if (episodes.size > 100) 100 else 50
+    val chunkSize = remember(currentSourceEpisodes.size) {
+        if (currentSourceEpisodes.size > 100) 100 else 50
     }
 
     val episodeRanges = remember(sortedEpisodes, chunkSize) {
@@ -503,6 +535,115 @@ fun EpisodesPage(
                 )
             }
 
+            // Sources Selector Row (Shows all available sites and allows filtering)
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                // All Sources (Unified Aggregated)
+                item {
+                    val isSelected = selectedProviderTab == "all"
+                    val chipBg by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        label = "allChipBg",
+                    )
+                    val chipTextColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = "allChipTextColor",
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(chipBg)
+                            .clickable {
+                                selectedProviderTab = "all"
+                                selectedRangeIndex = 0
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = "الكل (مدمج)",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = chipTextColor,
+                        )
+                        if (episodes.isNotEmpty()) {
+                            Text(
+                                text = "${episodes.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+
+                // Individual Providers
+                items(EpisodeSourcesManager.providers) { provider ->
+                    val isSelected = selectedProviderTab == provider.id
+                    val provEpisodes = providerEpisodesMap[provider.id]
+                    val hasEpisodes = provEpisodes != null && provEpisodes.isNotEmpty()
+                    val isChecking = isCheckingProvider == provider.id
+
+                    val chipBg by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        label = "provChipBg_${provider.id}",
+                    )
+                    val chipTextColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = "provChipTextColor_${provider.id}",
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(chipBg)
+                            .clickable {
+                                selectedProviderTab = provider.id
+                                selectedRangeIndex = 0
+                                if (provEpisodes == null) {
+                                    coroutineScope.launch {
+                                        isCheckingProvider = provider.id
+                                        val (_, eps) = EpisodeSourcesManager.fetchEpisodesForSingleProvider(provider, titles)
+                                        isCheckingProvider = null
+                                        if (eps.isNotEmpty()) {
+                                            providerEpisodesMap = providerEpisodesMap + (provider.id to eps)
+                                        }
+                                    }
+                                }
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Text(
+                            text = provider.name,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = chipTextColor,
+                        )
+                        if (isChecking) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(12.dp),
+                                strokeWidth = 1.5.dp,
+                                color = chipTextColor,
+                            )
+                        } else if (hasEpisodes) {
+                            Text(
+                                text = "${provEpisodes?.size}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary.copy(alpha = 0.85f) else MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
+                }
+            }
+
             // Range Selector Tabs
             if (episodeRanges.isNotEmpty() && searchQuery.isBlank()) {
                 LazyRow(
@@ -576,13 +717,31 @@ fun EpisodesPage(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         items(displayedEpisodes, key = { it.url + it.number }) { ep ->
+                            val epNumInt = ep.number.toInt()
                             val epNumStr = if (ep.number % 1.0f == 0.0f) {
-                                ep.number.toInt().toString()
+                                epNumInt.toString()
                             } else {
                                 ep.number.toString()
                             }
 
-                            val thumbModel = ep.thumbnail ?: route.fallbackThumbnail.ifEmpty { null }
+                            // 1. AniList official episode scene thumbnail
+                            // 2. Provider thumbnail if valid
+                            // 3. Fallback to anime cover image (غلاف الأنمي)
+                            val anilistThumb = anilistThumbnails[epNumStr] ?: anilistThumbnails[epNumInt.toString()]
+                            val providerThumb = ep.thumbnail?.takeIf {
+                                it.isNotBlank() &&
+                                !it.contains("default", ignoreCase = true) &&
+                                !it.contains("placeholder", ignoreCase = true) &&
+                                !it.contains("logo", ignoreCase = true)
+                            }
+                            val thumbModel = when {
+                                !anilistThumb.isNullOrBlank() -> anilistThumb
+                                !providerThumb.isNullOrBlank() -> providerThumb
+                                !route.coverImage.isNullOrBlank() -> route.coverImage
+                                !route.fallbackThumbnail.isNullOrBlank() -> route.fallbackThumbnail
+                                !route.bannerImage.isNullOrBlank() -> route.bannerImage
+                                else -> null
+                            }
 
                             Box(
                                 modifier = Modifier
@@ -601,7 +760,7 @@ fun EpisodesPage(
                                                 val resolved = withContext(Dispatchers.IO) {
                                                     EpisodeSourcesManager.resolveStreamServersWithFallback(
                                                         episode = ep,
-                                                        preferredProviderId = activeProvider?.id,
+                                                        preferredProviderId = if (selectedProviderTab != "all") selectedProviderTab else activeProvider?.id,
                                                     )
                                                 }
 
@@ -621,7 +780,7 @@ fun EpisodesPage(
                                                         ?: directStreams.firstOrNull()
                                                         ?: sList.first()
 
-                                                    EpisodeSessionRepository.setActiveEpisodes(episodes)
+                                                    EpisodeSessionRepository.setActiveEpisodes(currentSourceEpisodes)
                                                     EpisodeSessionRepository.setActiveServers(sList)
                                                     onNavigateToPlayer(
                                                         VideoPlayerRoute(
@@ -630,7 +789,7 @@ fun EpisodesPage(
                                                             initialQuality = chosenStream.quality,
                                                             initialUrl = chosenStream.url,
                                                             serversJson = SourceJsonParser.encodeServers(sList),
-                                                            episodesJson = SourceJsonParser.encodeEpisodes(episodes),
+                                                            episodesJson = SourceJsonParser.encodeEpisodes(currentSourceEpisodes),
                                                             providerId = resolved.winningProviderId.ifEmpty { activeProvider?.id ?: "anime4up" },
                                                         )
                                                     )
@@ -650,15 +809,13 @@ fun EpisodesPage(
                                     },
                             ) {
                                 // Thumbnail Image
-                                if (!thumbModel.isNullOrBlank()) {
-                                    AsyncImage(
-                                        model = thumbModel,
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Crop,
-                                        alignment = Alignment.Center,
-                                        modifier = Modifier.fillMaxSize(),
-                                    )
-                                }
+                                AsyncImage(
+                                    model = thumbModel,
+                                    contentDescription = ep.title,
+                                    contentScale = ContentScale.Crop,
+                                    alignment = Alignment.Center,
+                                    modifier = Modifier.fillMaxSize(),
+                                )
 
                                 // Dark Scrim
                                 Box(

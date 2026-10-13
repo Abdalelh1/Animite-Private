@@ -54,5 +54,6 @@ data class EpisodesRoute(
     val coverImage: String? = null,
     val totalEpisodes: Int? = null,
     val seasonYear: String? = null,
+    val streamingEpisodesJson: String = "{}",
 )
 
