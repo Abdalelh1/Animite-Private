@@ -1,0 +1,26 @@
+mutation UpdateUser(
+    $profileColor: String,
+    $scoreFormat: ScoreFormat,
+    $animeListOptions: MediaListOptionsInput,
+    $mangaListOptions: MediaListOptionsInput,
+) {
+    UpdateUser(
+        profileColor: $profileColor,
+        scoreFormat: $scoreFormat,
+        animeListOptions: $animeListOptions
+        mangaListOptions: $mangaListOptions
+    ) {
+        options {
+            profileColor
+        }
+        mediaListOptions {
+            scoreFormat
+            animeList {
+                sectionOrder
+            }
+            mangaList {
+                sectionOrder
+            }
+        }
+    }
+}

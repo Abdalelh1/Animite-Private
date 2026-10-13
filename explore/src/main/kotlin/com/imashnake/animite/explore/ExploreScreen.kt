@@ -1,0 +1,1114 @@
+package com.imashnake.animite.explore
+
+import android.content.res.Configuration
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.graphics.res.animatedVectorResource
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
+import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.plus
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.selection.TextSelectionColors
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.SheetState
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults.Indicator
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import androidx.compose.ui.platform.LocalWindowInfo
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.DpOffset
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastFilter
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
+import androidx.compose.ui.util.fastMap
+import androidx.compose.ui.zIndex
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.imashnake.animite.api.anilist.sanitize.media.Media
+import com.imashnake.animite.api.anilist.type.MediaType
+import com.imashnake.animite.core.resource.Resource
+import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.core.ui.component.BottomSheet
+import com.imashnake.animite.core.ui.component.ChipFlowRow
+import com.imashnake.animite.core.ui.component.ConfirmButton
+import com.imashnake.animite.core.ui.component.DropDownIcon
+import com.imashnake.animite.core.ui.component.Paginator
+import com.imashnake.animite.core.ui.component.RejectButton
+import com.imashnake.animite.core.ui.ext.copy
+import com.imashnake.animite.core.ui.ext.horizontalOnly
+import com.imashnake.animite.media.ext.icon
+import com.imashnake.animite.media.ext.res
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.launch
+import me.saket.cascade.CascadeDropdownMenu
+import me.saket.cascade.rememberCascadeState
+import com.imashnake.animite.navigation.R as navigationR
+
+@OptIn(
+    ExperimentalLayoutApi::class,
+    ExperimentalMaterial3Api::class,
+    ExperimentalMaterial3ExpressiveApi::class
+)
+@Composable
+fun ExploreScreen(
+    onItemClick: (Int, MediaType) -> Unit,
+    listState: LazyListState,
+    deviceScreenCornerRadius: Int,
+    modifier: Modifier = Modifier,
+    contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
+    viewModel: ExploreViewModel = hiltViewModel(),
+) {
+    val navigationComponentPaddingValues = when(LocalConfiguration.current.orientation) {
+        Configuration.ORIENTATION_PORTRAIT -> PaddingValues(bottom = dimensionResource(navigationR.dimen.navigation_bar_height))
+        else -> PaddingValues(start = dimensionResource(navigationR.dimen.navigation_rail_width))
+    }
+    val insetAndNavigationPaddingValues = contentWindowInsets.asPaddingValues() + navigationComponentPaddingValues
+
+    val explorePage by viewModel.explorePage.collectAsState()
+
+    var showFilterBottomSheet by rememberSaveable { mutableStateOf(false) }
+    val filterSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+
+    val deviceScreenCornerRadiusDp = with(LocalDensity.current) {
+        deviceScreenCornerRadius.toDp()
+    }
+
+    val haptic = LocalHapticFeedback.current
+
+    val searchQuery by viewModel.searchQuery.collectAsState()
+
+    var isSortDropdownExpanded by rememberSaveable { mutableStateOf(false) }
+    val selectedSort by viewModel.selectedSort.collectAsState()
+    val isDescending by viewModel.isDescending.collectAsState()
+
+    val mediaType by viewModel.mediaType.collectAsState()
+    val season by viewModel.selectedSeason.collectAsState()
+    val year by viewModel.selectedYear.collectAsState()
+    val isNsfwEnabled by viewModel.isNsfwEnabled.collectAsState(initial = false)
+    val isAdult by viewModel.isAdult.collectAsState(initial = false)
+
+    val chipGenreGroup by viewModel.chipGenreGroup.collectAsState()
+    val chipFormatGroup by viewModel.chipFormatGroup.collectAsState()
+    val chipStatusGroup by viewModel.chipStatusGroup.collectAsState()
+
+    var isRefreshing by remember { mutableStateOf(false) }
+    val pullToRefreshState = rememberPullToRefreshState()
+
+    var topPaddingPx by remember { mutableIntStateOf(0) }
+    val density = LocalDensity.current
+    val paddings = LocalPaddings.current
+
+    Box(modifier.fillMaxSize()) {
+        val isNotAtTop by remember {
+            derivedStateOf {
+                listState.firstVisibleItemScrollOffset != 0
+                        || listState.firstVisibleItemIndex != 0
+            }
+        }
+        val barBackgroundAlpha by animateFloatAsState(
+            targetValue = if (!isNotAtTop) 0f else 0.9f,
+            animationSpec = tween(300)
+        )
+        Column(
+            verticalArrangement = Arrangement.spacedBy(
+                LocalPaddings.current.small + LocalPaddings.current.tiny
+            ),
+            modifier = Modifier
+                // TODO: Why is this small padding being applied :[
+                .onSizeChanged { topPaddingPx = it.height - with(density) { paddings.small.roundToPx() } }
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = barBackgroundAlpha))
+                .padding(insetAndNavigationPaddingValues.copy(bottom = 0.dp))
+                .fillMaxWidth()
+                .padding(vertical = LocalPaddings.current.small)
+                .zIndex(Float.MAX_VALUE)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .padding(horizontal = LocalPaddings.current.large)
+                    .height(IntrinsicSize.Max)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerLow)
+            ) {
+                SearchBar(
+                    searchQuery = searchQuery,
+                    onSearch = { viewModel.setSearchQuery(it) },
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                        .padding(horizontal = LocalPaddings.current.small)
+                        .weight(1f)
+                )
+
+                Surface(
+                    color = MaterialTheme.colorScheme.primary,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(end = 8.dp)
+                ) {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(R.drawable.tune),
+                        contentDescription = stringResource(R.string.tune),
+                        tint = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                showFilterBottomSheet = true
+                            }
+                            .padding(8.dp)
+                            .size(24.dp)
+                    )
+                }
+            }
+
+            Sort(
+                sorts = Media.Sort.entries.fastFilter {
+                    when (mediaType) {
+                        MediaType.MANGA.name -> it != Media.Sort.EPISODES
+                        else -> true
+                    }
+                }.toImmutableList(),
+                selectedSort = selectedSort,
+                onSortSelected = { viewModel.setMediaSort(it) },
+                isDescending = isDescending,
+                toggleOrder = { viewModel.setIsDescending(!isDescending) },
+                expanded = isSortDropdownExpanded,
+                setExpanded = {
+                    haptic.performHapticFeedback(
+                        if (it) {
+                            HapticFeedbackType.ToggleOn
+                        } else HapticFeedbackType.ToggleOff
+                    )
+                    isSortDropdownExpanded = it
+                },
+                insetAndNavigationPaddingValues = insetAndNavigationPaddingValues,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
+
+        Column(Modifier.padding(insetAndNavigationPaddingValues.horizontalOnly)) {
+            AnimatedContent(
+                targetState = explorePage is Resource.Success,
+                transitionSpec = {
+                    fadeIn(tween(1000))
+                        .togetherWith(fadeOut(tween(1000)))
+                },
+            ) {
+                if (it) {
+                    PullToRefreshBox(
+                        isRefreshing = isRefreshing,
+                        onRefresh = { viewModel.refresh { huh -> isRefreshing = huh } },
+                        state = pullToRefreshState,
+                        indicator = {
+                            Indicator(
+                                isRefreshing = isRefreshing,
+                                state = pullToRefreshState,
+                                modifier = Modifier
+                                    .align(Alignment.TopCenter)
+                                    .offset { IntOffset(x = 0, y = topPaddingPx) },
+                            )
+                        }
+                    ) {
+                        MediaMediumList(
+                            mediaMediumList = explorePage?.data?.list
+                                .orEmpty()
+                                .toImmutableList(),
+                            onItemClick = { id -> onItemClick(id, MediaType.valueOf(mediaType)) },
+                            pageInfo = explorePage?.data?.info,
+                            onPageChanged = viewModel::setPage,
+                            shouldShowRank = true,
+                            modifier = Modifier
+                                .consumeWindowInsets(
+                                    insetAndNavigationPaddingValues
+                                            + PaddingValues(bottom = LocalPaddings.current.large)
+                                )
+                                .imePadding(),
+                            state = listState,
+                            contentPadding = PaddingValues(
+                                bottom = LocalPaddings.current.large,
+                                start = LocalPaddings.current.large,
+                                end = LocalPaddings.current.large,
+                            ) + PaddingValues(
+                                top = with(density) { topPaddingPx.toDp() },
+                                bottom = insetAndNavigationPaddingValues.calculateBottomPadding()
+                            )
+                        )
+                    }
+                } else {
+                    LoadingMediaMediumList(
+                        count = 10,
+                        contentPadding = PaddingValues(
+                            bottom = LocalPaddings.current.large,
+                            start = LocalPaddings.current.large,
+                            end = LocalPaddings.current.large,
+                        ) + PaddingValues(
+                            top = with(density) { topPaddingPx.toDp() },
+                            bottom = insetAndNavigationPaddingValues.calculateBottomPadding()
+                        ),
+                        modifier = Modifier
+                            .consumeWindowInsets(
+                                insetAndNavigationPaddingValues
+                                        + PaddingValues(bottom = LocalPaddings.current.large)
+                            )
+                            .imePadding(),
+                    )
+                }
+            }
+
+            if (showFilterBottomSheet) {
+                FilterBottomSheet(
+                    sheetState = filterSheetState,
+                    onDismissRequest = { showFilterBottomSheet = false },
+                    deviceScreenCornerRadiusDp = deviceScreenCornerRadiusDp,
+                    mediaType = mediaType,
+                    onMediaTypeChanged = viewModel::setMediaType,
+                    chipGenreGroup = chipGenreGroup,
+                    season = season,
+                    selectSeason = viewModel::setMediaSeason,
+                    year = year,
+                    onYearChange = viewModel::setMediaYear,
+                    yearRange = viewModel.yearRange,
+                    isNsfwEnabled = isNsfwEnabled,
+                    isAdult = isAdult == true,
+                    setIsAdult = viewModel::setIsAdult,
+                    chipFormatGroup = chipFormatGroup,
+                    chipStatusGroup = chipStatusGroup,
+                    includeChipFilter = viewModel::includeFilter,
+                    excludeChipFilter = viewModel::excludeFilter,
+                    clearChipFilter = viewModel::clearFilter,
+                    resetChipFilters = viewModel::resetFilter,
+                    reset = viewModel::reset,
+                    modifier = Modifier.padding(insetAndNavigationPaddingValues.horizontalOnly)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(
+    ExperimentalMaterial3Api::class,
+    ExperimentalLayoutApi::class
+)
+@Composable
+private fun SearchBar(
+    searchQuery: String?,
+    onSearch: (String?) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val focusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+    val closeIconSize by animateFloatAsState(
+        targetValue = if (!searchQuery.isNullOrEmpty()) 1f else 0f
+    )
+
+    TextField(
+        value = searchQuery.orEmpty(),
+        onValueChange = {
+            onSearch(it.ifEmpty { null })
+        },
+        modifier = modifier.focusRequester(focusRequester),
+        textStyle = MaterialTheme.typography.labelLarge,
+        placeholder = {
+            Text(
+                text = stringResource(R.string.search),
+                style = MaterialTheme.typography.labelLarge
+            )
+        },
+        singleLine = true,
+        colors = searchTextFieldColors(),
+        keyboardOptions = KeyboardOptions(autoCorrectEnabled = false, imeAction = ImeAction.Search),
+        keyboardActions = KeyboardActions(onSearch = { keyboardController?.hide() }),
+        leadingIcon = {
+            Icon(
+                imageVector = Icons.Rounded.Search,
+                contentDescription = null,
+                modifier = Modifier.size(20.dp)
+            )
+        },
+        trailingIcon = {
+            IconButton(
+                onClick = { onSearch(null) },
+                colors = IconButtonDefaults.iconButtonColors(),
+                modifier = Modifier
+                    .size(40.dp)
+                    .graphicsLayer {
+                        scaleX = closeIconSize
+                        scaleY = closeIconSize
+                    }
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Close,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    )
+}
+
+@Composable
+private fun Sort(
+    sorts: ImmutableList<Media.Sort>,
+    selectedSort: Media.Sort,
+    onSortSelected: (Media.Sort) -> Unit,
+    isDescending: Boolean,
+    toggleOrder: () -> Unit,
+    expanded: Boolean,
+    setExpanded: (Boolean) -> Unit,
+    insetAndNavigationPaddingValues: PaddingValues,
+    modifier: Modifier = Modifier,
+) {
+    val cascadeState = rememberCascadeState()
+    val haptic = LocalHapticFeedback.current
+
+    Box(modifier) {
+        AnimatedContent(
+            targetState = selectedSort,
+            modifier = Modifier.align(Alignment.Center)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { setExpanded(!expanded) }
+                    .padding(
+                        vertical = LocalPaddings.current.tiny,
+                        horizontal = LocalPaddings.current.small
+                    )
+                    .graphicsLayer {
+                        alpha = 0.5f
+                    }
+            ) {
+                Icon(
+                    imageVector = ImageVector.vectorResource(it.icon),
+                    contentDescription = null,
+                    modifier = Modifier.size(11.dp)
+                )
+                Text(
+                    text = stringResource(it.res),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+
+                val expandToCollapse = AnimatedImageVector.animatedVectorResource(
+                    R.drawable.order
+                )
+                Icon(
+                    painter = rememberAnimatedVectorPainter(
+                        animatedImageVector = expandToCollapse,
+                        atEnd = isDescending,
+                    ),
+                    contentDescription = null,
+                    modifier = Modifier.size(11.dp)
+                )
+            }
+        }
+
+        val screenDpSize = LocalWindowInfo.current.containerDpSize
+        val layoutDirection = LocalLayoutDirection.current
+        val offsetX = (
+                screenDpSize.width
+                        - insetAndNavigationPaddingValues.calculateStartPadding(layoutDirection)
+                        - insetAndNavigationPaddingValues.calculateEndPadding(layoutDirection)
+                        - 196.dp
+        ) / 2
+        val cornerRadius = LocalPaddings.current.large + LocalPaddings.current.tiny / 2
+        CascadeDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { setExpanded(false) },
+            state = cascadeState,
+            offset = DpOffset(x = offsetX, y = LocalPaddings.current.tiny),
+            shape = RoundedCornerShape(cornerRadius),
+        ) {
+            Text(
+                text = stringResource(R.string.sort),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.ExtraBold,
+                color = MaterialTheme.colorScheme.tertiary,
+                modifier = Modifier
+                    .padding(top = LocalPaddings.current.small)
+                    .align(Alignment.CenterHorizontally)
+            )
+            sorts.fastForEach { sort ->
+                val isSortSelected = sort == selectedSort
+                val backgroundColor by animateColorAsState(
+                    targetValue = if (isSortSelected)
+                        MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)
+                    else Color.Transparent
+                )
+                val textColor by animateColorAsState(
+                    targetValue = if (isSortSelected)
+                        MaterialTheme.colorScheme.onPrimary
+                    else MaterialTheme.colorScheme.onBackground
+                )
+                val iconSize by animateDpAsState(
+                    targetValue = if (isSortSelected)
+                        16.dp
+                    else 0.dp
+                )
+
+                DropdownMenuItem(
+                    text = {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.small)
+                            ) {
+                                Icon(
+                                    imageVector = ImageVector.vectorResource(sort.icon),
+                                    contentDescription = stringResource(sort.res),
+                                    modifier = Modifier.size(iconSize)
+                                )
+                                Text(stringResource(sort.res))
+                            }
+                            if (isSortSelected) {
+                                val order = AnimatedImageVector.animatedVectorResource(
+                                    R.drawable.order
+                                )
+                                Icon(
+                                    painter = rememberAnimatedVectorPainter(
+                                        animatedImageVector = order,
+                                        atEnd = isDescending,
+                                    ),
+                                    contentDescription = null,
+                                    modifier = Modifier.size(iconSize)
+                                )
+                            }
+                        }
+                    },
+                    leadingIcon = null,
+                    colors = MenuDefaults.itemColors(
+                        textColor = textColor,
+                        leadingIconColor = MaterialTheme.colorScheme.primary
+                    ),
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                        if (isSortSelected) {
+                            toggleOrder()
+                        } else {
+                            onSortSelected(sort)
+                        }
+                    },
+                    contentPadding = PaddingValues(
+                        vertical = LocalPaddings.current.small,
+                        horizontal = LocalPaddings.current.medium
+                    ),
+                    modifier = Modifier
+                        .padding(LocalPaddings.current.tiny)
+                        .clip(RoundedCornerShape(LocalPaddings.current.large))
+                        .background(color = backgroundColor)
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun FilterBottomSheet(
+    sheetState: SheetState,
+    onDismissRequest: () -> Unit,
+    deviceScreenCornerRadiusDp: Dp,
+    mediaType: String,
+    onMediaTypeChanged: (String) -> Unit,
+    chipGenreGroup: ExploreViewModel.ChipFilterGroup,
+    season: String?,
+    selectSeason: (String?) -> Unit,
+    year: Int?,
+    yearRange: IntRange,
+    onYearChange: (Int?) -> Unit,
+    isNsfwEnabled: Boolean,
+    isAdult: Boolean,
+    setIsAdult: (Boolean) -> Unit,
+    chipFormatGroup: ExploreViewModel.ChipFilterGroup,
+    chipStatusGroup: ExploreViewModel.ChipFilterGroup,
+    includeChipFilter: (ExploreViewModel.ChipFilterType, String) -> Unit,
+    excludeChipFilter: (ExploreViewModel.ChipFilterType, String) -> Unit,
+    clearChipFilter: (ExploreViewModel.ChipFilterType, String) -> Unit,
+    resetChipFilters: (ExploreViewModel.ChipFilterType) -> Unit,
+    reset: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    BottomSheet(
+        sheetState = sheetState,
+        onDismissRequest = onDismissRequest,
+        deviceScreenCornerRadiusDp = deviceScreenCornerRadiusDp,
+        contentPadding = PaddingValues(horizontal = LocalPaddings.current.medium) +
+                PaddingValues(bottom = LocalPaddings.current.large),
+        modifier = modifier,
+    ) { paddingValues, modifier ->
+        Column(
+            modifier = modifier
+                .background(
+                    Brush.verticalGradient(
+                        0f to MaterialTheme.colorScheme.surfaceContainerHighest,
+                        1f to MaterialTheme.colorScheme.background
+                    )
+                )
+                .padding(paddingValues)
+        ) {
+            ToggleFilter(
+                title = stringResource(R.string.type),
+                entries = MediaType.entries.minus(MediaType.UNKNOWN__).fastMap { it.name }.toImmutableList(),
+                selectedToggle = mediaType,
+                onToggled = {
+                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                    it?.let { onMediaTypeChanged(it) }
+                },
+                icon = { ImageVector.vectorResource(MediaType.valueOf(it).icon) },
+                text = { stringResource(MediaType.valueOf(it).res) }
+            )
+
+            ChipFilter(
+                type = ExploreViewModel.ChipFilterType.GENRE,
+                title = stringResource(R.string.genres),
+                includedFilters = chipGenreGroup.includedFilters,
+                excludedFilters = chipGenreGroup.excludedFilters,
+                allFilters = chipGenreGroup.allFilters,
+                onIncludedFilterClick = excludeChipFilter,
+                onExcludedFilterClick = clearChipFilter,
+                onAllFilterClick = includeChipFilter,
+                resetFilters = resetChipFilters
+            )
+
+            AnimatedVisibility(mediaType == MediaType.ANIME.name) {
+                ToggleFilter(
+                    title = stringResource(R.string.season),
+                    entries = Media.Season.entries.fastMap { it.name }.toImmutableList(),
+                    selectedToggle = season,
+                    onToggled = {
+                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                        selectSeason(it)
+                    },
+                    icon = { ImageVector.vectorResource(Media.Season.valueOf(it).icon) },
+                    text = { stringResource(Media.Season.valueOf(it).res) }
+                )
+            }
+
+            YearFilter(
+                year = year,
+                yearRange = yearRange,
+                onYearChange = onYearChange,
+            )
+
+            ChipFilter(
+                type = ExploreViewModel.ChipFilterType.FORMAT,
+                title = stringResource(R.string.format),
+                filterIcon = { Media.Format.safeValueOf(it)?.icon?.let { icon ->
+                    ImageVector.vectorResource(icon)
+                } },
+                filterText = { Media.Format.safeValueOf(it)?.res?.let { text ->
+                    stringResource(text)
+                } },
+                includedFilters = chipFormatGroup.includedFilters,
+                excludedFilters = chipFormatGroup.excludedFilters,
+                allFilters = chipFormatGroup.allFilters,
+                onIncludedFilterClick = excludeChipFilter,
+                onExcludedFilterClick = clearChipFilter,
+                onAllFilterClick = includeChipFilter,
+                resetFilters = resetChipFilters
+            )
+
+            ChipFilter(
+                type = ExploreViewModel.ChipFilterType.STATUS,
+                title = stringResource(R.string.status),
+                filterIcon = { Media.Status.safeValueOf(it)?.icon?.let { icon ->
+                    ImageVector.vectorResource(icon)
+                } },
+                filterText = { Media.Status.safeValueOf(it)?.res?.let { text ->
+                    stringResource(text)
+                } },
+                includedFilters = chipStatusGroup.includedFilters,
+                excludedFilters = chipStatusGroup.excludedFilters,
+                allFilters = chipStatusGroup.allFilters,
+                onIncludedFilterClick = excludeChipFilter,
+                onExcludedFilterClick = clearChipFilter,
+                onAllFilterClick = includeChipFilter,
+                resetFilters = resetChipFilters
+            )
+
+            if (isNsfwEnabled) {
+                OtherFilters(
+                    isAdult = isAdult,
+                    onCheckedChange = setIsAdult,
+                )
+            }
+
+            Spacer(modifier = Modifier.size(LocalPaddings.current.small))
+
+            // TODO: Not properly horizontally aligned when flowed.
+            FlowRow(
+                horizontalArrangement = Arrangement.Center,
+                verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                val scope = rememberCoroutineScope()
+                RejectButton(
+                    imageVector = ImageVector.vectorResource(R.drawable.reset),
+                    text = stringResource(R.string.reset_all),
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Reject)
+                        reset()
+                    },
+                )
+                Spacer(Modifier.size(LocalPaddings.current.medium))
+                ConfirmButton(
+                    imageVector = ImageVector.vectorResource(R.drawable.done),
+                    text = stringResource(R.string.done),
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                        scope.launch {
+                            sheetState.hide()
+                            onDismissRequest()
+                        }
+                    },
+                )
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun ToggleFilter(
+    title: String?,
+    entries: ImmutableList<String>,
+    selectedToggle: String?,
+    onToggled: (String?) -> Unit,
+    icon: @Composable (String) -> ImageVector,
+    text: @Composable (String) -> String,
+    modifier: Modifier = Modifier
+) {
+    CollapsibleRow(
+        title = title,
+        onLongClick = { onToggled(null) },
+        modifier = modifier,
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            modifier = Modifier.padding(top = LocalPaddings.current.medium)
+        ) {
+            entries.fastForEachIndexed { index, entry ->
+                ToggleButton(
+                    checked = selectedToggle == entry,
+                    onCheckedChange = { onToggled(entry) },
+                    shapes = when (index) {
+                        0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                        entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                    },
+                    colors = ToggleButtonDefaults.tonalToggleButtonColors(),
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny)
+                    ) {
+                        Icon(
+                            imageVector = icon(entry),
+                            contentDescription = text(entry),
+                            modifier = Modifier
+                                .graphicsLayer { alpha = 0.5f }
+                                .height(14.dp)
+                        )
+
+                        Text(
+                            text = text(entry),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun YearFilter(
+    year: Int?,
+    yearRange: IntRange,
+    onYearChange: (Int?) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    CollapsibleRow(
+        title = stringResource(R.string.year),
+        onLongClick = { onYearChange(null) },
+        modifier = modifier,
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            modifier = Modifier
+                .padding(top = LocalPaddings.current.medium)
+                .fillMaxWidth()
+                .align(Alignment.CenterHorizontally)
+        ) {
+            AnimatedVisibility(year != null) {
+                Column {
+                    Paginator(
+                        page = year,
+                        pageRange = yearRange,
+                        onPageChanged = { onYearChange(it) },
+                    )
+                    Spacer(Modifier.size(LocalPaddings.current.small))
+                }
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val firstYear = yearRange.first()
+                val lastYear = yearRange.last()
+                Text(
+                    text = firstYear.toString(),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+                Slider(
+                    value = year?.toFloat() ?: 0f,
+                    onValueChange = { onYearChange(it.toInt()) },
+                    colors = SliderDefaults.colors(
+                        activeTrackColor = SliderDefaults.colors().inactiveTrackColor,
+                        inactiveTickColor = Color.Transparent,
+                        activeTickColor = Color.Transparent
+                    ),
+                    steps = yearRange.count(),
+                    valueRange = firstYear.toFloat()..lastYear.toFloat(),
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = lastYear.toString(),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.Medium,
+                )
+            }
+        }
+    }
+}
+
+// TODO: This filter should make adult absolutely true.
+@Composable
+private fun OtherFilters(
+    isAdult: Boolean,
+    onCheckedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    CollapsibleRow(
+        title = stringResource(R.string.others),
+        onLongClick = {},
+        modifier = modifier,
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier
+                .padding(top = LocalPaddings.current.small)
+                .clip(CircleShape)
+                .clickable { onCheckedChange(!isAdult) }
+                .padding(end = LocalPaddings.current.medium)
+        ) {
+            Checkbox(
+                checked = isAdult,
+                onCheckedChange = onCheckedChange
+            )
+            Text(
+                text = stringResource(R.string.adult),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipFilter(
+    type: ExploreViewModel.ChipFilterType,
+    title: String?,
+    includedFilters: ImmutableList<String>,
+    excludedFilters: ImmutableList<String>,
+    allFilters: ImmutableList<String>,
+    onIncludedFilterClick: (ExploreViewModel.ChipFilterType, String) -> Unit,
+    onExcludedFilterClick: (ExploreViewModel.ChipFilterType, String) -> Unit,
+    onAllFilterClick: (ExploreViewModel.ChipFilterType, String) -> Unit,
+    resetFilters: (ExploreViewModel.ChipFilterType) -> Unit,
+    modifier: Modifier = Modifier,
+    filterIcon: @Composable ((String) -> ImageVector?)? = null,
+    filterText: @Composable ((String) -> String?)? = null,
+) {
+    val haptic = LocalHapticFeedback.current
+    CollapsibleRow(
+        title = title,
+        onLongClick = { resetFilters(type) },
+        modifier = modifier,
+    ) {
+        Column(Modifier.padding(top = LocalPaddings.current.medium)) {
+            ChipFilterFlowRow(
+                filters = includedFilters,
+                onFilterClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
+                    onIncludedFilterClick(type, it)
+                },
+                icon = ImageVector.vectorResource(R.drawable.include),
+                title = stringResource(R.string.include_genre),
+                chipColor = Color(0xFF80DF87),
+                transformFilterIcon = filterIcon,
+                transformFilterText = filterText,
+                modifier = Modifier.padding(bottom = LocalPaddings.current.small)
+            )
+
+            ChipFilterFlowRow(
+                filters = excludedFilters,
+                onFilterClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.ToggleOff)
+                    onExcludedFilterClick(type, it)
+                },
+                icon = ImageVector.vectorResource(R.drawable.exclude),
+                title = stringResource(R.string.exclude_genre),
+                chipColor = Color(0xFFFF9999),
+                transformFilterIcon = filterIcon,
+                transformFilterText = filterText,
+                modifier = Modifier.padding(bottom = LocalPaddings.current.small)
+            )
+
+            ChipFilterFlowRow(
+                filters = allFilters,
+                onFilterClick = {
+                    haptic.performHapticFeedback(HapticFeedbackType.ToggleOn)
+                    onAllFilterClick(type, it)
+                },
+                icon = ImageVector.vectorResource(R.drawable.all),
+                title = stringResource(R.string.all_genres),
+                transformFilterIcon = filterIcon,
+                transformFilterText = filterText,
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChipFilterFlowRow(
+    filters: ImmutableList<String>,
+    onFilterClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    transformFilterIcon: @Composable ((String) -> ImageVector?)? = null,
+    transformFilterText: @Composable ((String) -> String?)? = null,
+    icon: ImageVector? = null,
+    title: String? = null,
+    chipColor: Color= MaterialTheme.colorScheme.tertiary,
+) {
+    AnimatedContent(filters) {
+        if (it.isNotEmpty()) {
+            Column {
+                FlowFilterGroupHeaders(icon = icon, title = title)
+
+                ChipFlowRow(
+                    chips = it,
+                    onChipClick = onFilterClick,
+                    modifier = modifier,
+                    chipColor = chipColor,
+                    transformFilterIcon = transformFilterIcon,
+                    transformFilterText = transformFilterText,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FlowFilterGroupHeaders(
+    modifier: Modifier = Modifier,
+    icon: ImageVector? = null,
+    title: String? = null,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+        modifier = modifier.padding(bottom = LocalPaddings.current.tiny)
+    ) {
+        icon?.let {
+            Icon(
+                imageVector = icon,
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                contentDescription = null,
+                modifier = Modifier.size(11.dp)
+            )
+        }
+        title?.let {
+            Text(
+                text = title,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f),
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+            )
+        }
+    }
+}
+
+// TODO: Maybe move this to core:ui.
+@Composable
+private fun CollapsibleRow(
+    title: String?,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    content: @Composable (ColumnScope.() -> Unit),
+) {
+    var isVisible by rememberSaveable { mutableStateOf(true) }
+    Column(
+        modifier = modifier
+            .padding(vertical = LocalPaddings.current.small / 2)
+            .clip(RoundedCornerShape(LocalPaddings.current.small))
+            .combinedClickable(
+                onClick = { isVisible = !isVisible },
+                onLongClick = onLongClick
+            )
+            .padding(LocalPaddings.current.small)
+    ) {
+        title?.let {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = it,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    style = MaterialTheme.typography.titleMedium.copy(baselineShift = null),
+                )
+
+                DropDownIcon(isVisible, modifier = Modifier.padding(top = 2.dp))
+            }
+        }
+
+        AnimatedVisibility(visible = isVisible) {
+            content()
+        }
+    }
+}
+
+@Composable
+private fun searchTextFieldColors(
+    contentColor: Color = LocalContentColor.current
+) = TextFieldDefaults.colors(
+    unfocusedTextColor = contentColor,
+    focusedTextColor = contentColor,
+    focusedContainerColor = Color.Transparent,
+    unfocusedContainerColor = Color.Transparent,
+    disabledContainerColor = Color.Transparent,
+    cursorColor = contentColor,
+    selectionColors = TextSelectionColors(
+        handleColor = contentColor,
+        backgroundColor = contentColor.copy(alpha = 0.3f)
+    ),
+    focusedIndicatorColor = Color.Transparent,
+    unfocusedIndicatorColor = Color.Transparent,
+    focusedLeadingIconColor = contentColor,
+    unfocusedLeadingIconColor = contentColor,
+    focusedTrailingIconColor = contentColor,
+    unfocusedTrailingIconColor = contentColor,
+    unfocusedPlaceholderColor = contentColor.copy(alpha = 0.5f),
+    focusedPlaceholderColor = contentColor.copy(alpha = 0.5f),
+)

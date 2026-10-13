@@ -1,0 +1,92 @@
+import org.jetbrains.kotlin.gradle.tasks.KotlinCompile
+
+plugins {
+    alias(libs.plugins.android.library)
+    alias(libs.plugins.kotlin.serialization)
+    alias(libs.plugins.compose.compiler)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.detekt)
+}
+
+android {
+    buildTypes {
+        release {
+            isMinifyEnabled = false
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+        }
+    }
+
+    buildFeatures { compose = true }
+
+    namespace = "com.imashnake.animite.media"
+}
+
+kotlin {
+    jvmToolchain(21)
+}
+
+tasks.withType<KotlinCompile>().configureEach {
+    compilerOptions.freeCompilerArgs.addAll(
+        "-opt-in=androidx.compose.animation.ExperimentalSharedTransitionApi"
+    )
+}
+
+dependencies {
+    implementation(projects.banner)
+    implementation(projects.navigation)
+    implementation(projects.core.resource)
+    implementation(projects.core.ui)
+    implementation(projects.api.anilist)
+    implementation(projects.api.preferences)
+
+    // AndroidX
+    implementation(libs.androidx.activityCompose)
+    implementation(libs.androidx.core.ktx)
+    implementation(libs.androidx.lifecycleRuntimeKtx)
+
+    // Coil
+    implementation(libs.bundles.coil)
+
+    // Compose
+    implementation(libs.compose.animation)
+    implementation(libs.compose.animation.graphics)
+    implementation(libs.compose.foundation)
+    implementation(libs.compose.material)
+    implementation(libs.compose.material.icons.core)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.runtime)
+    implementation(libs.compose.ui)
+    debugImplementation(libs.compose.ui.tooling)
+    implementation(libs.compose.ui.toolingPreview)
+
+    // Hilt
+    implementation(libs.hilt.android)
+    implementation(libs.hilt.navigationCompose)
+    ksp(libs.hilt.android.compiler)
+
+    // Kotlin
+    implementation(libs.kotlinx.serialization.core)
+    implementation(libs.kotlinx.collectionsImmutable)
+    implementation(libs.kotlinx.datetime)
+
+    implementation(libs.materialKolor)
+
+    // Media3 (ExoPlayer)
+    implementation(libs.androidx.media3.exoplayer)
+    implementation(libs.androidx.media3.ui)
+    implementation(libs.androidx.media3.common)
+    implementation(libs.androidx.media3.datasource)
+    implementation(libs.androidx.media3.database)
+    implementation(libs.androidx.media3.exoplayer.hls)
+
+    // Jsoup & Ktor
+    implementation(libs.jsoup)
+    implementation(libs.ktor.core)
+    implementation(libs.ktor.cio)
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom("$rootDir/config/detekt/detekt.yml")
+    basePath = rootDir.absolutePath
+}

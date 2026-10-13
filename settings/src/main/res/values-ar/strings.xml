@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">الإعدادات</string>
+
+    <string name="appearance">المظهر</string>
+
+    <string name="theme">السمة</string>
+    <string name="dark">داكن</string>
+    <string name="light">فاتح</string>
+    <string name="system">الجهاز</string>
+    <string name="palette">استخدام ألوان النظام</string>
+    <string name="amoled">أموليد (AMOLED)</string>
+    <string name="density">كثافة العرض</string>
+
+    <string name="preferences">التفضيلات</string>
+
+    <string name="nsfw">محتوى البالغين (+18)</string>
+    <string name="title_language">لغة العناوين</string>
+    <string name="list_size">حجم القائمة</string>
+    <string name="anime_lists">قوائم الأنمي</string>
+    <string name="manga_lists">قوائم المانجا</string>
+
+    <string name="profile_settings">الملف الشخصي</string>
+    <string name="show_description">إظهار الوصف</string>
+    <string name="profile_color">تعيين لون الحساب</string>
+    <string name="use_expressive_progress_indicator">استخدام مؤشر تقدم تعبيري</string>
+    <string name="mlue">mlue</string>
+    <string name="score_format">صيغة التقييم</string>
+
+    <string name="about">حول التطبيق</string>
+
+    <string name="app_icon">أيقونة التطبيق</string>
+    <string name="discord">ديسكورد</string>
+    <string name="github">GitHub</string>
+    <string name="privacy_policy">سياسة الخصوصية</string>
+
+    <string name="dev_options">خيارات المطور</string>
+
+    <string name="already_developer">أنت مطور بالفعل!</string>
+    <plurals name="almost_developer">
+        <item quantity="zero">%1$d خطوة لتصبح مطوراً!</item>
+        <item quantity="one">خطوة واحدة لتصبح مطوراً!</item>
+        <item quantity="two">خطوتان لتصبح مطوراً!</item>
+        <item quantity="few">%1$d خطوات لتصبح مطوراً!</item>
+        <item quantity="many">%1$d خطوة لتصبح مطوراً!</item>
+        <item quantity="other">%1$d خطوة لتصبح مطوراً!</item>
+    </plurals>
+    <string name="now_developer">أنت الآن مطور!</string>
+    <string name="disabled_dev_options">"تم تعطيل خيارات المطور!"</string>
+
+    <string name="day_part">تعيين وقت اليوم</string>
+    <string name="day_hour">تعيين ساعة اليوم</string>
+    <string name="based_on_animite">مبني على Animite</string>
+    <string name="language">اللغة</string>
+    <string name="language_ar">العربية</string>
+    <string name="language_en">English</string>
+</resources>

@@ -1,0 +1,39 @@
+query UserQuery(
+    $id: Int,
+    $name: String,
+    $isModerator: Boolean,
+    $search: String,
+    $sort: [UserSort],
+) {
+    user: User(
+        id: $id,
+        name: $name
+        isModerator: $isModerator
+        search: $search
+        sort: $sort
+    ) {
+        ...User
+    }
+}
+
+query Viewer {
+    viewer: Viewer {
+        ...User
+    }
+}
+
+query UserMediaListQuery($userId: Int, $type: MediaType, $scoreFormat: ScoreFormat) {
+    mediaListCollection: MediaListCollection(userId: $userId, type: $type) {
+        lists {
+            name
+            entries {
+                status
+                progress
+                score(format: $scoreFormat)
+                media {
+                    ...MediaTracking
+                }
+            }
+        }
+    }
+}

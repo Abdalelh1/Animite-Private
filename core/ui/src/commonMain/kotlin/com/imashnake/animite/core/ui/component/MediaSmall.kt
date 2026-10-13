@@ -1,0 +1,517 @@
+package com.imashnake.animite.core.ui.component
+
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyItemScope
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.KeyboardArrowRight
+import androidx.compose.material3.Card
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.core.ui.ext.crossfadeModel
+import com.imashnake.animite.core.ui.rememberDefaultPaddings
+import kotlinx.collections.immutable.ImmutableList
+
+/**
+ * A [LazyRow] of [MediaSmall]s.
+ *
+ * @param mediaList A list of [T]s.
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+fun <T> MediaSmallRow(
+    title: String?,
+    mediaList: ImmutableList<T>,
+    modifier: Modifier = Modifier,
+    onListClick: (() -> Unit)? = null,
+    contentPadding: PaddingValues = PaddingValues(),
+    contextChip: @Composable (RowScope.((() -> Unit)?) -> Unit)? = null,
+    content: @Composable LazyItemScope.(Int, T) -> Unit
+) {
+    Column(
+        modifier = modifier
+            .clickable(enabled = onListClick != null) { onListClick?.invoke() }
+            .padding(
+                top = contentPadding.calculateTopPadding(),
+                bottom = contentPadding.calculateBottomPadding()
+            ),
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)
+    ) {
+        val layoutDirection = LocalLayoutDirection.current
+        val startPadding = contentPadding.calculateStartPadding(layoutDirection)
+        val endPadding = contentPadding.calculateEndPadding(layoutDirection)
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier
+                .padding(start = startPadding, end = endPadding)
+                .fillMaxWidth()
+        ) {
+            FlowRow(
+                itemVerticalAlignment = Alignment.CenterVertically,
+                verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+                modifier = Modifier.padding(end = 16.dp)
+            ) {
+                if (title != null) {
+                    Text(
+                        text = title,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        style = MaterialTheme.typography.titleMedium.copy(baselineShift = null),
+                    )
+                }
+                if (contextChip != null) contextChip(onListClick)
+            }
+
+            if (onListClick != null) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    modifier = Modifier
+                        .requiredSize(16.dp)
+                        .clip(CircleShape)
+                        .clickable { onListClick() }
+                )
+            }
+        }
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+            contentPadding = PaddingValues(
+                start = startPadding,
+                end = endPadding,
+            )
+        ) {
+            itemsIndexed(mediaList) { index, media ->
+                content(index, media)
+            }
+        }
+    }
+}
+
+@Composable
+fun LoadingMediaSmallRow(
+    count: Int,
+    imageHeight: Dp,
+    cardWidth: Dp,
+    modifier: Modifier = Modifier,
+    titleStyle: TextStyle = MaterialTheme.typography.titleMedium,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    Column(
+        modifier = modifier.padding(
+            top = contentPadding.calculateTopPadding(),
+            bottom = contentPadding.calculateBottomPadding()
+        ),
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)
+    ) {
+        val layoutDirection = LocalLayoutDirection.current
+        val startPadding = contentPadding.calculateStartPadding(layoutDirection)
+        val endPadding = contentPadding.calculateEndPadding(layoutDirection)
+        Text(
+            text = " ",
+            color = MaterialTheme.colorScheme.onBackground,
+            style = titleStyle,
+            modifier = Modifier
+                .padding(
+                    start = startPadding,
+                    end = endPadding,
+                )
+                .clip(CircleShape)
+                .requiredWidth(cardWidth)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+        )
+        LazyRow(
+            horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+            contentPadding = PaddingValues(
+                start = startPadding,
+                end = endPadding,
+            ),
+            userScrollEnabled = false
+        ) {
+            items(count) {
+                LoadingMediaSmall(
+                    imageHeight = imageHeight,
+                    cardWidth = cardWidth,
+                )
+            }
+        }
+    }
+}
+
+/**
+ * A [Card] that displays media (anime or manga) thumbnail, and an optional label.
+ *
+ * @param image A URL of the image to be shown in the card that this component is.
+ * @param label A label for the [image], if this is `null`, the [label] is not shown.
+ * @param onClick Action to happen when the card is clicked.
+ */
+@Composable
+fun MediaCard(
+    image: String?,
+    tag: String?,
+    label: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+) {
+    MediaSmall(
+        image = image,
+        onClick = onClick,
+        imageHeight = 200.dp,
+        cardWidth = 140.dp,
+        modifier = modifier,
+        imageModifier = imageModifier,
+        textModifier = textModifier,
+        tag = tag,
+        label = label
+    )
+}
+
+/**
+ * A [Card] that is the size of [CharacterCard].
+ *
+ * @param image A URL of the image to be shown in the card that this component is.
+ * @param label A label for the [image], if this is `null`, the [label] is not shown.
+ * @param onClick Action to happen when the card is clicked.
+ */
+@Composable
+fun MediaMediumCard(
+    image: String?,
+    tag: String?,
+    tagMinLines: Int,
+    label: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+) {
+    MediaSmall(
+        image = image,
+        onClick = onClick,
+        imageHeight = 137.dp,
+        cardWidth = 96.dp,
+        modifier = modifier,
+        imageModifier = imageModifier,
+        textModifier = textModifier,
+        tag = tag,
+        tagMinLines = tagMinLines,
+        label = label
+    )
+}
+
+/**
+ * A [Card] that is smaller (for tracking lists).
+ *
+ * @param image A URL of the image to be shown in the card that this component is.
+ * @param label A label for the [image], if this is `null`, the [label] is not shown.
+ * @param onClick Action to happen when the card is clicked.
+ */
+@Composable
+fun MediaTrackingCard(
+    image: String?,
+    tag: String?,
+    tagMinLines: Int,
+    label: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+) {
+    MediaSmall(
+        image = image,
+        onClick = onClick,
+        imageHeight = 80.dp,
+        cardWidth = 56.dp,
+        modifier = modifier,
+        imageModifier = imageModifier,
+        textModifier = textModifier,
+        tag = tag,
+        tagMinLines = tagMinLines,
+        label = label
+    )
+}
+
+/**
+ * A [Card] that displays a character thumbnail, and an optional label.
+ *
+ * @param image A URL of the image to be shown in the card that this component is.
+ * @param label A label for the [image], if this is `null`, the [label] is not shown.
+ * @param onClick Action to happen when the card is clicked.
+ */
+@Composable
+fun CharacterCard(
+    image: String?,
+    tag: String?,
+    tagMinLines: Int,
+    label: String?,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+) {
+    MediaSmall(
+        image = image,
+        onClick = onClick,
+        imageHeight = 137.dp,
+        cardWidth = 96.dp,
+        modifier = modifier,
+        imageModifier = imageModifier,
+        textModifier = textModifier,
+        tag = tag,
+        tagMinLines = tagMinLines,
+        label = label
+    )
+}
+
+/**
+ * A [Card] to display a media image and a label. Note that [imageHeight] and [cardWidth] must be
+ * set so that all cards have the same dimensions.
+ *
+ * @param image A URL of the image to be shown in the card that this component is.
+ * @param label A label for the [image], if this is `null`, the [label] is not shown.
+ * @param onClick Action to happen when the card is clicked.
+ * @param imageHeight Fixed height of the images in the card.
+ * @param cardWidth Width of the card.
+ */
+@Composable
+internal fun MediaSmall(
+    image: String?,
+    tag: String?,
+    label: String?,
+    onClick: () -> Unit,
+    imageHeight: Dp,
+    cardWidth: Dp,
+    modifier: Modifier = Modifier,
+    imageModifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier,
+    tagMinLines: Int = 1,
+) {
+    Card(
+        onClick = onClick,
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.width(cardWidth),
+    ) {
+        Box(
+            modifier = imageModifier
+                .height(imageHeight)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+        ) {
+            AsyncImage(
+                model = crossfadeModel(image),
+                contentDescription = label,
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize()
+            )
+
+            if (tag != null)
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .graphicsLayer {
+                            translationY = 7f
+                        }
+                        .fillMaxWidth()
+                        .align(Alignment.BottomCenter)
+                        .background(color = MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                        .padding(vertical = LocalPaddings.current.tiny)
+                        // Because the cropping is being weird
+                        .padding(bottom = LocalPaddings.current.tiny)
+                        .padding(horizontal = LocalPaddings.current.medium)
+                ) {
+                    if (tagMinLines > 1) {
+                        Text(
+                            text = " \n ",
+                            fontSize = 10.sp,
+                            maxLines = tagMinLines,
+                            minLines = tagMinLines,
+                            lineHeight = 16.sp,
+                        )
+                    }
+                    Text(
+                        text = tag,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = tagMinLines,
+                        lineHeight = 16.sp,
+                    )
+                }
+        }
+
+        if (label != null)
+            Box {
+                Text(
+                    text = " \n ",
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelLarge,
+                    maxLines = 2,
+                    modifier = Modifier.padding(vertical = 10.dp)
+                )
+
+                Box(
+                    Modifier
+                        .align(Alignment.Center)
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                ) {
+                    Text(
+                        text = label,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelLarge,
+                        maxLines = 2,
+                        // TODO: Add a custom overflow indicator:
+                        //  https://proandroiddev.com/detect-text-overflow-in-jetpack-compose-56c0b83da5a5.
+                        overflow = TextOverflow.Visible,
+                        textAlign = TextAlign.Center,
+                        modifier = textModifier.align(Alignment.Center),
+                    )
+                }
+            }
+    }
+}
+
+@Composable
+fun LoadingMediaSmall(
+    imageHeight: Dp,
+    cardWidth: Dp,
+    modifier: Modifier = Modifier,
+    shouldShowLabel: Boolean = true,
+) {
+    Card(
+        shape = RoundedCornerShape(18.dp),
+        modifier = modifier.width(cardWidth),
+    ) {
+        Box(
+            modifier = Modifier
+                .height(imageHeight)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+        )
+
+        if (shouldShowLabel)
+            Text(
+                text = " \n ",
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.padding(vertical = 10.dp)
+            )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewCharacterCard() {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        CharacterCard(
+            image = null,
+            tag = "tag",
+            label = "label",
+            tagMinLines = 1,
+            onClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewCharacterCardShortTag() {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        CharacterCard(
+            image = null,
+            tag = "tag",
+            tagMinLines = 2,
+            label = "label",
+            onClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewCharacterCardLongTag() {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        CharacterCard(
+            image = null,
+            tag = "long\ntag",
+            tagMinLines = 2,
+            label = "long\nlabel",
+            onClick = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PreviewLoadingMediaSmall() {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        LoadingMediaSmall(
+            imageHeight = 200.dp,
+            cardWidth = 140.dp,
+        )
+    }
+}
+
+@Preview(showBackground = true)
+@Composable
+private fun PreviewLoadingMediaSmallRow() {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        LoadingMediaSmallRow(count = 10, imageHeight = 200.dp, cardWidth = 140.dp)
+    }
+}
+
+
+@Preview
+@Composable
+private fun PreviewMediaSmall() {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        MediaSmall(
+            imageHeight = 200.dp,
+            cardWidth = 140.dp,
+            image = "",
+            tag = "tag",
+            label = "",
+            onClick = {},
+        )
+    }
+}

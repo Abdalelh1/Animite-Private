@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">الإعدادات</string>
+    <string name="more_options">خيارات إضافية</string>
+
+    <string name="refresh">تحديث</string>
+
+    <string name="log_out">تسجيل الخروج</string>
+    <string name="log_out_confirmation">هل أنت متأكد من رغبتك في تسجيل الخروج؟</string>
+    <string name="dismiss">إلغاء</string>
+
+    <string name="about">حول</string>
+    <string name="anime">أنمي</string>
+    <string name="manga">مانجا</string>
+    <string name="favourites">المفضلة</string>
+    <string name="statistics">الإحصائيات</string>
+    
+    <string name="total_anime">إجمالي\nالأنمي</string>
+    <string name="days_watched">أيام\nالمشاهدة</string>
+    <string name="mean_score">متوسط\nالتقييم</string>
+
+    <string name="genres">التصنيفات</string>
+
+    <string name="watching">يشاهد حالياً</string>
+    <string name="completed">مكتمل</string>
+    <string name="paused">متوقف مؤقتاً</string>
+    <string name="dropped">متروك</string>
+    <string name="rewatching">إعادة مشاهدة</string>
+    <string name="plan_to_watch">مخطط للمشاهدة</string>
+    <string name="reading">يقرأ حالياً</string>
+    <string name="rereading">إعادة قراءة</string>
+    <string name="plan_to_read">مخطط للقراءة</string>
+    <string name="unknown">غير معروف</string>
+
+    <string name="expand_all">توسيع الكل</string>
+    <string name="collapse_all">طي الكل</string>
+    <string name="reorder">إعادة ترتيب</string>
+    <string name="done">تم</string>
+
+    <plurals name="ep_count">
+        <item quantity="zero">%1$d حلقة</item>
+        <item quantity="one">حلقة واحدة</item>
+        <item quantity="two">حلقتان</item>
+        <item quantity="few">%1$d حلقات</item>
+        <item quantity="many">%1$d حلقة</item>
+        <item quantity="other">%1$d حلقة</item>
+    </plurals>
+
+    <string name="status">الحالة</string>
+    <string name="score">التقييم</string>
+    <string name="progress">التقدم</string>
+    <string name="started_at">تاريخ البدء</string>
+    <string name="completed_at">تاريخ الاكتمال</string>
+
+    <string name="add_date">إضافة تاريخ</string>
+
+    <string name="save">حفظ</string>
+    <string name="close">إغلاق</string>
+
+    <string name="ok">حسناً</string>
+    <string name="cancel">إلغاء</string>
+
+    <string name="no_anime">لا يوجد أنمي</string>
+    <string name="no_manga">لا توجد مانجا</string>
+    <string name="no_media">لا توجد وسائط</string>
+    <string name="no_favourites">لا توجد مفضلات</string>
+    <string name="log_in">تسجيل الدخول</string>
+    <string name="anilist_icon">أيقونة AniList</string>
+    <string name="avatar">الصورة الرمزية</string>
+</resources>

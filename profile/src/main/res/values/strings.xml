@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Settings</string>
+    <string name="more_options">More options</string>
+
+    <string name="refresh">Refresh</string>
+
+    <string name="log_out">Log out</string>
+    <string name="log_out_confirmation">Are you sure you want to log out?</string>
+    <string name="dismiss">Dismiss</string>
+
+    <string name="about">About</string>
+    <string name="anime">Anime</string>
+    <string name="manga">Manga</string>
+    <string name="favourites">Fave</string>
+    <string name="statistics">Stats</string>
+    
+    <string name="total_anime">TOTAL\nANIME</string>
+    <string name="days_watched">DAYS\nWATCHED</string>
+    <string name="mean_score">MEAN\nSCORE</string>
+
+    <string name="genres">Genres</string>
+
+    <string name="watching">Watching</string>
+    <string name="completed">Completed</string>
+    <string name="paused">Paused</string>
+    <string name="dropped">Dropped</string>
+    <string name="rewatching">Rewatching</string>
+    <string name="plan_to_watch">Plan to watch</string>
+    <string name="reading">Reading</string>
+    <string name="rereading">Rereading</string>
+    <string name="plan_to_read">Plan to read</string>
+    <string name="unknown">Unknown</string>
+
+    <string name="expand_all">Expand All</string>
+    <string name="collapse_all">Collapse All</string>
+    <string name="reorder">Reorder</string>
+    <string name="done">Done</string>
+
+    <plurals name="ep_count">
+        <item quantity="one">%1$d ep</item>
+        <item quantity="other">%1$d eps</item>
+    </plurals>
+
+    <string name="status">Status</string>
+    <string name="score">Score</string>
+    <string name="progress">Progress</string>
+    <string name="started_at">Started at</string>
+    <string name="completed_at">Completed at</string>
+
+    <string name="add_date">Add date</string>
+
+    <string name="save">Save</string>
+    <string name="close">Close</string>
+
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+
+    <string name="no_anime">No Anime</string>
+    <string name="no_manga">No Manga</string>
+    <string name="no_media">No Media</string>
+    <string name="no_favourites">No Favourites</string>
+    <string name="log_in">Log in</string>
+    <string name="anilist_icon">AniList icon</string>
+    <string name="avatar">Avatar</string>
+</resources>

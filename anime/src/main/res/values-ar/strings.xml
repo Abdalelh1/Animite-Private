@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="okaeri" translatable="false">おかえり</string>
+    <string name="trending_now">الرائج الآن</string>
+    <string name="popular_this_season">الأكثر شعبية هذا الموسم</string>
+    <string name="upcoming_next_season">القادم في الموسم المقبل</string>
+    <string name="all_time_popular">الأكثر شعبية على الإطلاق</string>
+</resources>

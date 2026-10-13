@@ -1,0 +1,1569 @@
+@file:Suppress("AssignedValueIsNeverRead")
+
+package com.imashnake.animite.media
+
+import android.content.Intent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Companion.Down
+import androidx.compose.animation.AnimatedContentTransitionScope.SlideDirection.Companion.Up
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.graphics.res.animatedVectorResource
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
+import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.plus
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.foundation.layout.requiredWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentSize
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SheetValue
+import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.material3.carousel.HorizontalMultiBrowseCarousel
+import androidx.compose.material3.carousel.rememberCarouselState
+import androidx.compose.material3.rememberBottomSheetState
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.painter.ColorPainter
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.LinkInteractionListener
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.fromHtml
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastDistinctBy
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.lerp
+import androidx.core.graphics.toColorInt
+import androidx.core.net.toUri
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import coil3.compose.AsyncImage
+import coil3.request.ImageRequest
+import coil3.request.crossfade
+import com.imashnake.animite.api.anilist.sanitize.media.Media
+import com.imashnake.animite.banner.BannerLayout
+import com.imashnake.animite.core.resource.Resource
+import com.imashnake.animite.core.ui.Constants
+import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.core.ui.component.BottomSheet
+import com.imashnake.animite.core.ui.component.CharacterCard
+import com.imashnake.animite.core.ui.component.Chip
+import com.imashnake.animite.core.ui.component.ChipFlowRow
+import com.imashnake.animite.core.ui.component.LoadingMediaSmallRow
+import com.imashnake.animite.core.ui.component.MediaCard
+import com.imashnake.animite.core.ui.component.MediaSmallRow
+import com.imashnake.animite.core.ui.component.StatsRow
+import com.imashnake.animite.core.ui.component.ToggleText
+import com.imashnake.animite.core.ui.ext.bannerParallax
+import com.imashnake.animite.core.ui.ext.crossfadeModel
+import com.imashnake.animite.core.ui.ext.horizontalOnly
+import com.imashnake.animite.core.ui.layout.NestedScrollableContent
+import com.imashnake.animite.core.ui.layout.TranslucentStatusBarLayout
+import com.imashnake.animite.media.ext.icon
+import com.imashnake.animite.media.ext.res
+import com.imashnake.animite.media.ext.title
+import com.imashnake.animite.navigation.ExploreRoute
+import com.imashnake.animite.navigation.VideoPlayerRoute
+import com.imashnake.animite.media.source.MediaEpisodesSection
+import com.imashnake.animite.navigation.SharedContentKey
+import com.imashnake.animite.navigation.SharedContentKey.Component.Card
+import com.imashnake.animite.navigation.SharedContentKey.Component.Image
+import com.imashnake.animite.navigation.SharedContentKey.Component.Page
+import com.materialkolor.ktx.animateColorScheme
+import com.materialkolor.ktx.blend
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.serialization.Serializable
+import kotlin.math.absoluteValue
+import kotlin.time.Clock
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+
+private const val RECOMMENDATIONS = "Recommendations"
+private const val RELATIONS = "Relations"
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+@Suppress(
+    "CognitiveComplexMethod",
+    "LongMethod"
+)
+fun MediaPage(
+    onBack: () -> Unit,
+    onNavigateToMediaItem: (MediaPage) -> Unit,
+    onNavigateToExplore: (ExploreRoute) -> Unit,
+    onNavigateToPlayer: (VideoPlayerRoute) -> Unit = {},
+    deviceScreenCornerRadius: Int,
+    useDarkTheme: Boolean,
+    isAmoled: Boolean,
+    sharedTransitionScope: SharedTransitionScope,
+    animatedVisibilityScope: AnimatedVisibilityScope,
+    contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
+    viewModel: MediaPageViewModel = hiltViewModel(),
+) {
+    val insetPaddingValues = contentWindowInsets.asPaddingValues()
+    val horizontalInsets = insetPaddingValues.horizontalOnly
+
+    val scrollState = rememberScrollState()
+
+    val media by viewModel.media.collectAsState()
+    val source by viewModel.source.collectAsState()
+    val listSize by viewModel.listSize.collectAsState()
+    val id by viewModel.id.collectAsState()
+
+    var showDetailsSheet by remember { mutableStateOf(false) }
+    val detailsSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+
+    var selectedTimeSpanIndex by remember { mutableIntStateOf(0) }
+    val haptic = LocalHapticFeedback.current
+
+    var showCharacterSheet by remember { mutableStateOf(false) }
+    var showStaffSheet by remember { mutableStateOf(false) }
+
+    val creditPagerState = rememberPagerState(pageCount = { listSize })
+    val creditSheetState = rememberBottomSheetState(initialValue = SheetValue.Hidden)
+    val coroutineScope = rememberCoroutineScope()
+
+    var isExpanded by rememberSaveable { mutableStateOf(false) }
+
+    val deviceScreenCornerRadiusDp = with(LocalDensity.current) {
+        deviceScreenCornerRadius.toDp()
+    }
+
+    MaterialTheme(
+        colorScheme = animateColorScheme(
+            rememberColorSchemeFor(
+                color = if (media is Resource.Success) media.data?.color?.toColorInt() else null,
+                useDarkTheme = useDarkTheme,
+                isAmoled = isAmoled
+            ),
+        )
+    ) {
+        TranslucentStatusBarLayout(
+            scrollState = scrollState,
+            modifier = Modifier.background(MaterialTheme.colorScheme.background)
+        ) {
+            with(sharedTransitionScope) {
+                Box(
+                    Modifier
+                        .sharedBounds(
+                            rememberSharedContentState(
+                                SharedContentKey(
+                                    id = id,
+                                    source = source,
+                                    sharedComponents = Card to Page,
+                                )
+                            ),
+                            animatedVisibilityScope,
+                            resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds,
+                            clipInOverlayDuringTransition = OverlayClip(
+                                RoundedCornerShape(deviceScreenCornerRadiusDp)
+                            ),
+                        )
+                        .clip(RoundedCornerShape(deviceScreenCornerRadiusDp))
+                        .fillMaxSize()
+                        .verticalScroll(scrollState)
+                ) {
+                    Crossfade(media) { resource ->
+                        when(resource) {
+                            is Resource.Success -> {
+                                BannerLayout(
+                                    banner = { bannerModifier ->
+                                        media.data?.let { media ->
+                                            MediaBanner(
+                                                imageUrl = media.bannerImage,
+                                                color = Color(media.color.toColorInt()).copy(alpha = 0.5f),
+                                                modifier = bannerModifier
+                                                    .skipToLookaheadSize()
+                                                    .bannerParallax(scrollState)
+                                            )
+                                        }
+                                    },
+                                    content = {
+                                        media.data?.let { media ->
+                                            MediaDetails(
+                                                title = media.title,
+                                                otherTitles = media.otherTitles,
+                                                nextAiring = media.nextAiring,
+                                                description = media.description,
+                                                textModifier = Modifier.skipToLookaheadSize(),
+                                                isSheetOpen = showDetailsSheet,
+                                                onClick = { showDetailsSheet = true },
+                                                modifier = Modifier
+                                                    .skipToLookaheadSize()
+                                                    .padding(horizontal = LocalPaddings.current.large / 2)
+                                                    .padding(start = dimensionResource(R.dimen.media_card_width) + LocalPaddings.current.large)
+                                                    .padding(horizontalInsets)
+                                                    .height(dimensionResource(R.dimen.media_details_height) + LocalPaddings.current.medium / 2),
+                                            )
+
+                                            if (media.info.isNotEmpty()) {
+                                                MediaInfo(
+                                                    info = media.info,
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = LocalPaddings.current.large
+                                                    ) + horizontalInsets,
+                                                )
+                                            }
+
+                                            if (media.rankings.isNotEmpty()) {
+                                                MediaRankings(
+                                                    selectedTimeSpanIndex = selectedTimeSpanIndex,
+                                                    onCheckedChange = {
+                                                        selectedTimeSpanIndex = it
+                                                        haptic.performHapticFeedback(
+                                                            HapticFeedbackType.SegmentTick
+                                                        )
+                                                    },
+                                                    rankings = media.rankings,
+                                                    year = media.year,
+                                                    season = media.season,
+                                                    modifier = Modifier
+                                                        .skipToLookaheadSize()
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = LocalPaddings.current.large)
+                                                        .padding(horizontalInsets)
+                                                )
+                                            }
+
+                                            if (media.genres.isNotEmpty()) {
+                                                MediaGenres(
+                                                    genres = media.genres,
+                                                    onGenreClick = {
+                                                        onNavigateToExplore(ExploreRoute(genre = it))
+                                                    },
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = LocalPaddings.current.large
+                                                    ) + horizontalInsets,
+                                                    modifier = Modifier.skipToLookaheadSize()
+                                                )
+                                            }
+
+                                            if (media.characters.isNotEmpty()) {
+                                                MediaCredits(
+                                                    title = stringResource(R.string.characters),
+                                                    credits = media.characters,
+                                                    onCreditClick = { index, _ ->
+                                                        coroutineScope.launch {
+                                                            creditPagerState.scrollToPage(index)
+                                                        }
+                                                        showCharacterSheet = true
+                                                    },
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = LocalPaddings.current.large
+                                                    ) + horizontalInsets,
+                                                )
+                                            }
+
+                                            if (media.staff.isNotEmpty()) {
+                                                MediaCredits(
+                                                    title = stringResource(R.string.staff),
+                                                    credits = media.staff,
+                                                    onCreditClick = { index, _ ->
+                                                        coroutineScope.launch {
+                                                            creditPagerState.scrollToPage(index)
+                                                        }
+                                                        showStaffSheet = true
+                                                    },
+                                                    tagMinLines = 2,
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = LocalPaddings.current.large
+                                                    ) + horizontalInsets,
+                                                )
+                                            }
+
+                                            if (media.trailer != null || media.streamingEpisodes.isNotEmpty()) {
+                                                MediaWatch(
+                                                    trailer = media.trailer,
+                                                    streamingEpisodes = media.streamingEpisodes,
+                                                    modifier = Modifier
+                                                        .skipToLookaheadSize()
+                                                        .padding(horizontal = LocalPaddings.current.large)
+                                                        .padding(horizontalInsets)
+                                                )
+                                            }
+                                            if (viewModel.isAnime) {
+                                                val allEpisodeTitles = remember(media) {
+                                                    (listOfNotNull(media.title) + media.otherTitles)
+                                                        .filter { it.isNotBlank() }
+                                                        .distinct()
+                                                }
+                                                MediaEpisodesSection(
+                                                    titles = allEpisodeTitles,
+                                                    onNavigateToPlayer = onNavigateToPlayer,
+                                                    modifier = Modifier
+                                                        .skipToLookaheadSize()
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = LocalPaddings.current.large)
+                                                        .padding(horizontalInsets)
+                                                )
+                                            }
+
+                                            if (media.relations.isNotEmpty()) {
+                                                MediaRelations(
+                                                    relations = media.relations,
+                                                    onItemClicked = {
+                                                        onNavigateToMediaItem(
+                                                            MediaPage(
+                                                                id = it.id,
+                                                                source = RELATIONS,
+                                                                mediaType = it.type.name,
+                                                            )
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = LocalPaddings.current.large
+                                                    ) + horizontalInsets,
+                                                )
+                                            }
+
+                                            if (media.recommendations.isNotEmpty()) {
+                                                MediaRecommendations(
+                                                    recommendations = media.recommendations,
+                                                    onItemClicked = {
+                                                        onNavigateToMediaItem(
+                                                            MediaPage(
+                                                                id = it.id,
+                                                                source = RECOMMENDATIONS,
+                                                                mediaType = it.type.name,
+                                                            )
+                                                        )
+                                                    },
+                                                    contentPadding = PaddingValues(
+                                                        horizontal = LocalPaddings.current.large
+                                                    ) + horizontalInsets,
+                                                )
+                                            }
+                                        }
+                                    },
+                                    contentPadding = PaddingValues(
+                                        top = LocalPaddings.current.medium / 2,
+                                        bottom = LocalPaddings.current.large +
+                                                insetPaddingValues.calculateBottomPadding()
+                                    )
+                                )
+                            }
+
+                            is Resource.Loading -> {
+                                BannerLayout(
+                                    banner = { bannerModifier ->
+                                        Box(bannerModifier.background(
+                                            MaterialTheme.colorScheme.onBackground.copy(alpha = 0.035f))
+                                        )
+                                    },
+                                    content = {
+                                        LoadingBannerLayoutContent(
+                                            horizontalInsets = horizontalInsets,
+                                            modifier = Modifier.skipToLookaheadSize()
+                                        )
+                                    },
+                                    contentPadding = PaddingValues(
+                                        top = LocalPaddings.current.medium / 2,
+                                        bottom = LocalPaddings.current.large +
+                                                insetPaddingValues.calculateBottomPadding()
+                                    )
+                                )
+                            }
+
+                            // TODO: Error state.
+                            is Resource.Error -> {}
+                        }
+                    }
+
+                    val isAtTop by remember { derivedStateOf { scrollState.value == 0 } }
+                    val offset by animateDpAsState(
+                        targetValue = if (isAtTop)
+                            0.dp
+                        else
+                            dimensionResource(R.dimen.media_image_height) - dimensionResource(R.dimen.media_details_height),
+                        animationSpec = tween(durationMillis = 750),
+                        label = "media_card_height"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .statusBarsPadding()
+                            .padding(
+                                top = dimensionResource(R.dimen.media_details_height)
+                                        + LocalPaddings.current.medium
+                                        + 168.dp
+                                        - dimensionResource(R.dimen.media_image_height)
+                                        - insetPaddingValues.calculateTopPadding()
+                                        + offset,
+                                start = LocalPaddings.current.large,
+                            )
+                            .padding(horizontalInsets)
+                            .height(dimensionResource(R.dimen.media_image_height) - offset)
+                    ) {
+                        MediaCard(
+                            image = media.data?.coverImage,
+                            tag = null,
+                            label = null,
+                            onClick = {},
+                            modifier = Modifier.sharedBounds(
+                                rememberSharedContentState(
+                                    SharedContentKey(
+                                        id = id,
+                                        source = source,
+                                        sharedComponents = Image to Image,
+                                    )
+                                ),
+                                animatedVisibilityScope,
+                                resizeMode = SharedTransitionScope.ResizeMode.RemeasureToBounds
+                            )
+                        )
+                    }
+
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
+                        contentDescription = stringResource(R.string.back),
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(insetPaddingValues)
+                            .padding(
+                                start = LocalPaddings.current.medium,
+                                top = LocalPaddings.current.small
+                            )
+                            .clip(CircleShape)
+                            .clickable(enabled = !isExpanded) { onBack() }
+                            .padding(LocalPaddings.current.small),
+                        tint = if (isSystemInDarkTheme()) Color.White else Color.Black
+                    )
+                }
+            }
+
+            if (showDetailsSheet) {
+                media.data?.let { media ->
+                    BottomSheet(
+                        sheetState = detailsSheetState,
+                        onDismissRequest = { showDetailsSheet = false },
+                        deviceScreenCornerRadiusDp = deviceScreenCornerRadiusDp,
+                    ) { paddingValues, modifier ->
+                        Column(modifier) {
+                            Text(
+                                text = media.title.orEmpty(),
+                                color = MaterialTheme.colorScheme.onBackground,
+                                style = MaterialTheme.typography.titleLarge,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                    .padding(paddingValues)
+                                    .padding(vertical = LocalPaddings.current.medium)
+                            )
+
+                            MediaDescription(
+                                html = media.description,
+                                modifier = Modifier
+                                    .padding(paddingValues)
+                                    .padding(top = LocalPaddings.current.medium)
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (showCharacterSheet || showStaffSheet) {
+                media.data?.let { media ->
+                    BottomSheet(
+                        sheetState = creditSheetState,
+                        dragHandleBackgroundColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                        onDismissRequest = {
+                            if (showCharacterSheet) {
+                                showCharacterSheet = false
+                            } else showStaffSheet = false
+                        },
+                        deviceScreenCornerRadiusDp = deviceScreenCornerRadiusDp
+                    ) { paddingValues, modifier ->
+                        HorizontalPager(state = creditPagerState) { page ->
+                            Column(modifier = modifier) {
+                                val currentCredit = if (showCharacterSheet) {
+                                    media.characters[page]
+                                } else {
+                                    media.staff[page]
+                                }
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        LocalPaddings.current.medium
+                                    ),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                        .padding(paddingValues)
+                                        .padding(bottom = LocalPaddings.current.large)
+                                        .graphicsLayer {
+                                            val pageOffset = (
+                                                    creditPagerState.currentPage - page + creditPagerState.currentPageOffsetFraction
+                                                    ).absoluteValue
+
+                                            alpha = lerp(
+                                                start = 0f,
+                                                stop = 1f,
+                                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                                            )
+                                            scaleY = lerp(
+                                                start = 0.9f,
+                                                stop = 1f,
+                                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                                            )
+                                            scaleX = lerp(
+                                                start = 0.9f,
+                                                stop = 1f,
+                                                fraction = 1f - pageOffset.coerceIn(0f, 1f)
+                                            )
+                                        }
+                                ) {
+                                    CharacterCard(
+                                        image = currentCredit.image,
+                                        tag = null,
+                                        tagMinLines = 1,
+                                        label = null,
+                                        onClick = {},
+                                    )
+
+                                    Column(
+                                        verticalArrangement = Arrangement.spacedBy(
+                                            LocalPaddings.current.small
+                                        ),
+                                        modifier = Modifier.height(dimensionResource(R.dimen.character_image_height))
+                                    ) {
+                                        Column(
+                                            verticalArrangement = Arrangement.spacedBy(
+                                                LocalPaddings.current.tiny
+                                            )
+                                        ) {
+                                            Text(
+                                                text = currentCredit.name.orEmpty(),
+                                                color = MaterialTheme.colorScheme.onBackground,
+                                                style = MaterialTheme.typography.titleLarge,
+                                            )
+
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(
+                                                    LocalPaddings.current.small
+                                                )
+                                            ) {
+                                                currentCredit.dob?.let { dob ->
+                                                    Chip(
+                                                        color = Color(0xFF80DF87),
+                                                        text = dob,
+                                                        iconPadding = PaddingValues(bottom = 2.dp),
+                                                        icon = ImageVector.vectorResource(R.drawable.cake),
+                                                    )
+                                                }
+
+                                                currentCredit.favourites?.let { fav ->
+                                                    Chip(
+                                                        color = Color(0xFFFF9999),
+                                                        text = fav,
+                                                        icon = Icons.Rounded.Favorite
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        if (currentCredit.alternativeNames.isNotBlank()) {
+                                            MediaDescription(currentCredit.alternativeNames)
+                                        }
+                                    }
+                                }
+
+                                // TODO: Remove spoilers.
+                                currentCredit.description?.let { description ->
+                                    MediaDescription(
+                                        html = description,
+                                        onLinkClick = onLinkClick@{
+                                            val id =
+                                                it?.split("/")?.getOrNull(4)?.toIntOrNull()
+                                                    ?: return@onLinkClick null
+                                            val character =
+                                                media.characters.find { character -> character.id == id }
+                                                    ?: return@onLinkClick null
+                                            val index = media.characters.indexOf(character)
+                                            if (index != -1) {
+                                                coroutineScope.launch {
+                                                    creditPagerState.animateScrollToPage(
+                                                        index
+                                                    )
+                                                }
+                                            } else return@onLinkClick null
+                                            return@onLinkClick Unit
+                                        },
+                                        modifier = Modifier
+                                            .background(MaterialTheme.colorScheme.surfaceContainerLow)
+                                            .padding(paddingValues)
+                                            .padding(top = LocalPaddings.current.medium)
+                                            .graphicsLayer {
+                                                val pageOffset = (
+                                                        creditPagerState.currentPage - page + creditPagerState.currentPageOffsetFraction
+                                                        ).absoluteValue
+
+                                                alpha = lerp(
+                                                    start = 0f,
+                                                    stop = 1f,
+                                                    fraction = 1f - pageOffset.coerceIn(
+                                                        0f,
+                                                        1f
+                                                    )
+                                                )
+                                                scaleY = lerp(
+                                                    start = 0.9f,
+                                                    stop = 1f,
+                                                    fraction = 1f - pageOffset.coerceIn(
+                                                        0f,
+                                                        1f
+                                                    )
+                                                )
+                                                scaleX = lerp(
+                                                    start = 0.9f,
+                                                    stop = 1f,
+                                                    fraction = 1f - pageOffset.coerceIn(
+                                                        0f,
+                                                        1f
+                                                    )
+                                                )
+                                                translationY = lerp(
+                                                    start = size.height * -0.025f,
+                                                    stop = 0f,
+                                                    fraction = 1f - pageOffset.coerceIn(
+                                                        0f,
+                                                        1f
+                                                    )
+                                                )
+                                            }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaBanner(
+    imageUrl: String?,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    AsyncImage(
+        model = crossfadeModel(imageUrl),
+        contentDescription = null,
+        placeholder = ColorPainter(color),
+        error = painterResource(R.drawable.background),
+        fallback = painterResource(R.drawable.background),
+        contentScale = ContentScale.Crop,
+        modifier = modifier,
+        alignment = Alignment.Center,
+        colorFilter = ColorFilter.tint(
+            color = color.copy(alpha = 0.25f),
+            blendMode = BlendMode.SrcAtop
+        )
+    )
+}
+
+@Composable
+private fun MediaDetails(
+    title: String?,
+    otherTitles: ImmutableList<String>?,
+    nextAiring: Media.NextAiring?,
+    description: String,
+    isSheetOpen: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    textModifier: Modifier = Modifier
+) {
+    val countdownText = rememberCountdownText(nextAiring)
+    Box(modifier = modifier) {
+        Column(
+            modifier = Modifier
+                .clip(RoundedCornerShape(LocalPaddings.current.small))
+                .clickable { onClick() }
+                .padding(horizontal = LocalPaddings.current.large / 2)
+                .padding(top = LocalPaddings.current.medium / 2)
+                .fillMaxSize()
+        ) {
+            val titles = (listOf(title) + otherTitles.orEmpty())
+                .fastDistinctBy { it }
+                .toImmutableList()
+
+            ToggleText(
+                texts = titles,
+                text = {
+                    Text(
+                        text = it.orEmpty(),
+                        color = MaterialTheme.colorScheme.onBackground,
+                        style = MaterialTheme.typography.titleLarge,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = textModifier.padding(end = LocalPaddings.current.small)
+                    )
+                },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 16.dp)
+            )
+
+            if (countdownText != null) {
+                Box(contentAlignment = Alignment.Center) {
+                    Chip(
+                        color = Color(0xFF80DF87),
+                        icon = ImageVector.vectorResource(R.drawable.hourglass),
+                        text = countdownText,
+                        modifier = Modifier.padding(
+                            top = LocalPaddings.current.small,
+                            bottom = LocalPaddings.current.tiny,
+                        )
+                    )
+                }
+            }
+
+            NestedScrollableContent { contentModifier ->
+                MediaDescription(description, contentModifier)
+            }
+        }
+
+        val expandToCollapse = AnimatedImageVector.animatedVectorResource(
+            R.drawable.expand_collapse_anim
+        )
+        Icon(
+            painter = rememberAnimatedVectorPainter(
+                animatedImageVector = expandToCollapse,
+                atEnd = isSheetOpen,
+            ),
+            contentDescription = null,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = LocalPaddings.current.small)
+                .requiredSize(16.dp)
+        )
+    }
+}
+
+@Composable
+private fun rememberCountdownText(nextAiring: Media.NextAiring?): String? {
+    nextAiring ?: return null
+
+    val airingAt = nextAiring.airingAt
+    var remaining by remember(airingAt) { mutableStateOf(airingAt - Clock.System.now()) }
+
+    LaunchedEffect(airingAt) {
+        while (true) {
+            remaining = airingAt - Clock.System.now()
+            if (remaining <= Duration.ZERO) break
+            delay(1.seconds)
+        }
+    }
+
+    val countdownDuration = formatCountdown(remaining) ?: return null
+    return stringResource(R.string.episode_airing_countdown, nextAiring.episode, countdownDuration)
+}
+
+@Composable
+private fun formatCountdown(remaining: Duration): String? {
+    if (remaining <= Duration.ZERO) return null
+
+    return remaining.toComponents { days, hours, minutes, seconds, _ ->
+        buildString {
+            if (days > 0) append(stringResource(R.string.countdown_days, days)).append(" ")
+            if (hours > 0 || days > 0) append(stringResource(R.string.countdown_hours, hours)).append(" ")
+            if (days == 0L) {
+                append(stringResource(R.string.countdown_minutes, minutes)).append(" ")
+                append(stringResource(R.string.countdown_seconds, seconds))
+            }
+        }.trim()
+    }
+}
+
+@Composable
+private fun MediaDescription(
+    html: String,
+    modifier: Modifier = Modifier,
+    onLinkClick: ((String?) -> Unit?)? = null,
+) {
+    val uriHandler = LocalUriHandler.current
+    Text(
+        text = AnnotatedString.fromHtml(
+            htmlString = html,
+            linkInteractionListener = LinkInteractionListener { link ->
+                val url = (link as? LinkAnnotation.Url)?.url
+                if (onLinkClick == null || onLinkClick(url) == null) {
+                    url?.let { uriHandler.openUri(it) }
+                } else {
+                    onLinkClick(url)
+                }
+            }
+        ),
+        color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.74f),
+        style = MaterialTheme.typography.bodyMedium,
+        modifier = modifier,
+        overflow = TextOverflow.Ellipsis
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun MediaInfo(
+    info: ImmutableList<Media.Info>,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues()
+) {
+    val infiniteTransition = rememberInfiniteTransition(label = "divider")
+    val angle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(6000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "rotation"
+    )
+    if (info.isNotEmpty()) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier
+                .horizontalScroll(state = rememberScrollState())
+                .padding(contentPadding)
+                .background(
+                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                    shape = RoundedCornerShape(LocalPaddings.current.large),
+                )
+                .padding(horizontal = LocalPaddings.current.medium)
+        ) {
+            info.fastForEach {
+                when (it) {
+                    is Media.Info.Divider -> {
+                        Box(
+                            modifier = Modifier
+                                .graphicsLayer { rotationZ = angle }
+                                .padding(LocalPaddings.current.small)
+                                .size(6.dp)
+                                .background(
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.74f),
+                                    shape = MaterialShapes.Cookie4Sided.toShape()
+                                )
+                        )
+                    }
+
+                    else -> {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(LocalPaddings.current.large))
+                                .clickable {}
+                                .padding(
+                                    vertical = LocalPaddings.current.medium,
+                                    horizontal = LocalPaddings.current.large / 2,
+                                )
+                        ) {
+                            Text(
+                                text = stringResource(it.item.title!!),
+                                style = MaterialTheme.typography.labelSmallEmphasized
+                            )
+                            Text(
+                                text = when (it) {
+                                    is Media.Info.Item -> it.value
+                                    is Media.Info.Season -> listOfNotNull(
+                                        stringResource(it.season.res), it.year
+                                    ).joinToString(" ")
+
+                                    else -> stringResource(
+                                        when (it) {
+                                            is Media.Info.Format -> it.format.res
+                                            is Media.Info.Status -> it.status.res
+                                            is Media.Info.Source -> it.source.res
+                                        }
+                                    )
+                                },
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.74f),
+                                style = MaterialTheme.typography.labelSmallEmphasized
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun MediaRankings(
+    selectedTimeSpanIndex: Int,
+    onCheckedChange: (Int) -> Unit,
+    rankings: ImmutableList<Pair<Media.Ranking.TimeSpan, ImmutableList<Media.Ranking>>>,
+    year: String?,
+    season: Media.Season?,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+        modifier = modifier
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            modifier = Modifier.padding(vertical = LocalPaddings.current.tiny)
+        ) {
+            Media.Ranking.TimeSpan.entries.fastForEach { timeSpan ->
+                CompositionLocalProvider(
+                    // Remove default M3 padding
+                    LocalMinimumInteractiveComponentSize provides 0.dp,
+                ) {
+                    ToggleButton(
+                        checked = selectedTimeSpanIndex == timeSpan.index,
+                        onCheckedChange = { onCheckedChange(timeSpan.index) },
+                        shapes = when (timeSpan.index) {
+                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                            2 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                        },
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny)
+                        ) {
+                            Text(text = stringResource(timeSpan.res), Modifier.alignByBaseline())
+                            when (timeSpan.index) {
+                                1 -> year?.let {
+                                    Text(
+                                        text = it,
+                                        fontSize = 10.sp,
+                                        modifier = Modifier
+                                            .graphicsLayer { alpha = 0.5f }
+                                            .alignByBaseline()
+                                    )
+                                }
+
+                                2 -> season?.let {
+                                    Icon(
+                                        imageVector = ImageVector.vectorResource(it.icon),
+                                        contentDescription = stringResource(it.res),
+                                        modifier = Modifier
+                                            .graphicsLayer { alpha = 0.5f }
+                                            .height(14.dp)
+                                            .align(Alignment.CenterVertically)
+                                    )
+                                }
+
+                                else -> {}
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        AnimatedContent(
+            targetState = selectedTimeSpanIndex,
+            transitionSpec = {
+                (fadeIn(animationSpec = tween(220, delayMillis = 90)) +
+                        slideIntoContainer(towards = Up, initialOffset = { it / 3 }))
+                    .togetherWith(
+                        fadeOut(animationSpec = tween(90)) +
+                                slideOutOfContainer(towards = Down, targetOffset =  { it / 3 })
+                    )
+            }
+        ) {
+            val selectedList = rankings[it]
+            if (selectedList.second.isEmpty()) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(verticalArrangement = Arrangement.SpaceEvenly) {
+                        Text(
+                            text = " ",
+                            style = MaterialTheme.typography.labelSmall
+                        )
+                        Text(
+                            text = " ",
+                            style = MaterialTheme.typography.displaySmall
+                        )
+                    }
+                    Text(
+                        text = stringResource(R.string.no_rankings),
+                        color = MaterialTheme.colorScheme.onBackground.copy(
+                            alpha = 0.74f
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                    )
+                }
+            } else {
+                StatsRow(
+                    stats = selectedList.second,
+                    modifier = Modifier.fillMaxWidth()
+                ) { ranking ->
+                    val textColor = when (ranking.type) {
+                        Media.Ranking.Type.SCORE -> MaterialTheme.colorScheme.onBackground
+                        Media.Ranking.Type.RATED,
+                        Media.Ranking.Type.POPULAR -> when (ranking.rank) {
+                            1 -> Color(0xFFEFBF04)
+                            2 -> Color(0xFFC4C4C4)
+                            3 -> Color(0xFFA45100)
+                            else -> MaterialTheme.colorScheme.onBackground
+                        }
+                    }
+
+                    Text(
+                        text = stringResource(ranking.type.res),
+                        color = textColor,
+                        style = MaterialTheme.typography.labelSmall
+                    )
+
+                    Text(
+                        text = when (ranking.type) {
+                            Media.Ranking.Type.SCORE -> "${ranking.rank}%"
+                            Media.Ranking.Type.RATED,
+                            Media.Ranking.Type.POPULAR -> when (ranking.rank) {
+                                1 -> "\uD83E\uDD47"
+                                2 -> "\uD83E\uDD48"
+                                3 -> "\uD83E\uDD49"
+                                else -> "#${ranking.rank}"
+                            }
+                        },
+                        color = textColor,
+                        style = MaterialTheme.typography.displaySmall
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaGenres(
+    genres: ImmutableList<String>,
+    onGenreClick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues,
+) {
+    ChipFlowRow(
+        chips = genres,
+        onChipClick = onGenreClick,
+        chipColor = MaterialTheme.colorScheme.primaryContainer.blend(
+            MaterialTheme.colorScheme.onBackground, amount = 0.65f
+        ),
+        modifier = modifier.padding(contentPadding),
+    )
+}
+
+/**
+ * Credit -> Character | Staff.
+ */
+@Composable
+private fun MediaCredits(
+    title: String?,
+    credits: ImmutableList<Media.Credit>,
+    onCreditClick: (Int, Media.Credit) -> Unit,
+    modifier: Modifier = Modifier,
+    tagMinLines: Int = 1,
+    contentPadding: PaddingValues = PaddingValues()
+) {
+    MediaSmallRow(
+        title = title,
+        mediaList = credits,
+        modifier = modifier,
+        contentPadding = contentPadding,
+    ) { index, credit ->
+        CharacterCard(
+            image = credit.image,
+            tag = credit.role,
+            tagMinLines = tagMinLines,
+            label = credit.name,
+            onClick = { onCreditClick(index, credit) },
+        )
+    }
+}
+
+@Composable
+private fun MediaWatch(
+    trailer: Media.Trailer?,
+    streamingEpisodes: ImmutableList<Media.Episode>?,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    val context = LocalContext.current
+    val isTrailerPresent = trailer != null
+    val isEpisodeListPresent = !streamingEpisodes.isNullOrEmpty()
+    val bottomCornerRadius = if (isEpisodeListPresent) {
+        LocalPaddings.current.small
+    } else {
+        dimensionResource(R.dimen.trailer_corner_radius)
+    }
+    val trailerShape = RoundedCornerShape(
+        topStart = dimensionResource(R.dimen.trailer_corner_radius),
+        topEnd = dimensionResource(R.dimen.trailer_corner_radius),
+        bottomStart = bottomCornerRadius,
+        bottomEnd = bottomCornerRadius,
+    )
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)
+    ) {
+        Text(
+            text = stringResource(R.string.watch),
+            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.titleMedium
+        )
+
+        Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small)) {
+            if (isTrailerPresent) {
+                Box(
+                    modifier = Modifier
+                        .wrapContentSize()
+                        .clip(trailerShape)
+                        .background(color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f))
+                        .clickable {
+                            val appIntent = Intent(Intent.ACTION_VIEW, trailer.url?.toUri())
+                            context.startActivity(appIntent)
+                        }
+                ) {
+                    var bestThumbnail by rememberSaveable { mutableStateOf(trailer.thumbnail.maxResDefault) }
+
+                    val model = remember(bestThumbnail) {
+                        ImageRequest.Builder(context)
+                            .data(bestThumbnail)
+                            .apply {
+                                listener(
+                                    onError = { _, _ ->
+                                        bestThumbnail =
+                                            if (bestThumbnail?.contains("maxresdefault") == true) {
+                                                trailer.thumbnail.sdDefault
+                                            } else trailer.thumbnail.defaultThumbnail
+                                    }
+                                )
+                            }
+                            .crossfade(Constants.CROSSFADE_DURATION)
+                            .build()
+                    }
+
+                    AsyncImage(
+                        model = model,
+                        contentDescription = stringResource(R.string.trailer),
+                        contentScale = ContentScale.FillWidth,
+                        alignment = Alignment.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .aspectRatio(16f / 9),
+                    )
+
+                    Image(
+                        painter = painterResource(R.drawable.youtube),
+                        contentDescription = null,
+                        modifier = Modifier.align(Alignment.Center)
+                    )
+                }
+            }
+
+            if (isEpisodeListPresent) {
+                MediaStreamingEpisode(
+                    streamingEpisodes = streamingEpisodes,
+                    isTrailerPresent = isTrailerPresent,
+                    contentPadding = contentPadding,
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaStreamingEpisode(
+    streamingEpisodes: ImmutableList<Media.Episode>,
+    isTrailerPresent: Boolean,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    HorizontalMultiBrowseCarousel(
+        state = rememberCarouselState { streamingEpisodes.size },
+        preferredItemWidth = dimensionResource(R.dimen.media_card_width),
+        itemSpacing = LocalPaddings.current.small,
+        maxSmallItemWidth = dimensionResource(R.dimen.media_card_width),
+        minSmallItemWidth = 0.dp,
+        modifier = modifier.padding(contentPadding),
+    ) { index ->
+        val uriHandler = LocalUriHandler.current
+        val topCornerRadius = if (isTrailerPresent) {
+            LocalPaddings.current.small
+        } else {
+            18.dp
+        }
+        with(streamingEpisodes[index]) {
+            Box(
+                modifier = Modifier
+                    .width(dimensionResource(R.dimen.media_card_width))
+                    .aspectRatio(4f / 3f)
+                    .maskClip(
+                        RoundedCornerShape(
+                            topStart = topCornerRadius,
+                            topEnd = topCornerRadius,
+                            bottomStart = 18.dp,
+                            bottomEnd = 18.dp,
+                        )
+                    )
+                    .clickable {
+                        url.let { uriHandler.openUri(it) }
+                    }
+            ) {
+                AsyncImage(
+                    model = crossfadeModel(thumbnail),
+                    contentDescription = stringResource(R.string.streaming_episode),
+                    contentScale = ContentScale.Crop,
+                    alignment = Alignment.Center,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                number?.let {
+                    Text(
+                        text = it,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .padding(9.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                            .padding(horizontal = LocalPaddings.current.small)
+                    )
+                }
+
+                title?.let {
+                    Box(
+                        contentAlignment = Alignment.Center,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .background(color = MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                            .padding(horizontal = 9.dp)
+                            .padding(vertical = LocalPaddings.current.ultraTiny)
+                    ) {
+                        Text(
+                            text = " \n ",
+                            maxLines = 2,
+                            minLines = 2,
+                            lineHeight = 16.sp,
+                        )
+                        Text(
+                            text = it,
+                            color = MaterialTheme.colorScheme.onBackground,
+                            fontSize = 10.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 2,
+                            lineHeight = 16.sp,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaRelations(
+    relations: ImmutableList<Pair<Media.Relation?, Media.Small>>,
+    onItemClicked: (Media.Small) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    MediaSmallRow(
+        title = stringResource(R.string.relations),
+        mediaList = relations,
+        modifier = modifier,
+        contentPadding = contentPadding,
+    ) { _, media ->
+        MediaCard(
+            image = media.second.coverImage,
+            tag = media.first?.let { stringResource(it.res) },
+            label = media.second.title,
+            onClick = { onItemClicked(media.second) },
+        )
+    }
+}
+
+@Composable
+private fun MediaRecommendations(
+    recommendations: ImmutableList<Media.Small>,
+    onItemClicked: (Media.Small) -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    MediaSmallRow(
+        title = stringResource(R.string.recommendations),
+        mediaList = recommendations,
+        modifier = modifier,
+        contentPadding = contentPadding,
+    ) { _, media ->
+        MediaCard(
+            image = media.coverImage,
+            tag = null,
+            label = media.title,
+            onClick = { onItemClicked(media) },
+        )
+    }
+}
+
+@Composable
+private fun LoadingBannerLayoutContent(
+    horizontalInsets: PaddingValues,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+        modifier = modifier
+            .padding(horizontal = LocalPaddings.current.large / 2)
+            .padding(start = dimensionResource(R.dimen.media_card_width) + LocalPaddings.current.large)
+            .padding(horizontalInsets)
+            .fillMaxWidth()
+            .height(dimensionResource(R.dimen.media_details_height) + LocalPaddings.current.medium / 2)
+    ) {
+        Text(
+            text = "",
+            color = MaterialTheme.colorScheme.onBackground,
+            style = MaterialTheme.typography.titleMedium,
+            modifier = Modifier
+                .padding(top = LocalPaddings.current.small)
+                .clip(CircleShape)
+                .requiredWidth(140.dp)
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+        )
+
+        Box(
+            Modifier
+                .clip(RoundedCornerShape(LocalPaddings.current.small))
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+        )
+    }
+
+    LoadingMediaInfo(
+        contentPadding = PaddingValues(
+            start = LocalPaddings.current.large
+        ) + horizontalInsets,
+        modifier = modifier
+    )
+
+    LoadingMediaRankings(modifier.padding(horizontalInsets))
+
+    LoadingMediaGenres(
+        modifier = modifier.padding(
+            PaddingValues(
+                horizontal = LocalPaddings.current.large
+            ) + horizontalInsets
+        )
+    )
+
+    repeat(2) {
+        LoadingMediaSmallRow(
+            count = 10,
+            imageHeight = 137.dp,
+            cardWidth = 96.dp,
+            // TODO: Not removing baseline shift causes misalignment, figure out why.
+            titleStyle = MaterialTheme.typography.titleMedium.copy(baselineShift = null),
+            contentPadding = PaddingValues(
+                horizontal = LocalPaddings.current.large
+            ) + horizontalInsets,
+        )
+    }
+}
+
+@Composable
+private fun LoadingMediaInfo(
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues()
+) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+        modifier = modifier
+            .padding(contentPadding)
+            .background(
+                color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                shape = RoundedCornerShape(
+                    topStart = LocalPaddings.current.large,
+                    bottomStart = LocalPaddings.current.large
+                ),
+            )
+            .fillMaxWidth()
+            .padding(vertical = LocalPaddings.current.medium)
+    ) {
+        repeat(2) {
+            Text(
+                text = " ",
+                style = MaterialTheme.typography.labelSmallEmphasized
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingMediaRankings(modifier: Modifier = Modifier) {
+    Column(
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = LocalPaddings.current.large)
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+            modifier = Modifier.padding(vertical = LocalPaddings.current.tiny)
+        ) {
+            repeat(3) {
+                Box(
+                    modifier = Modifier
+                        .clip(
+                            when(it) {
+                                0 -> ButtonGroupDefaults.connectedLeadingButtonShape
+                                1 -> ButtonGroupDefaults.connectedMiddleButtonShapes().shape
+                                else -> ButtonGroupDefaults.connectedTrailingButtonShape
+                            }
+                        )
+                        .background(MaterialTheme.colorScheme.onSurface.copy(0.1f))
+                        .height(ToggleButtonDefaults.MinHeight)
+                        .weight(1f)
+                ) {
+                    Text(" ", style = MaterialTheme.typography.labelLarge)
+                }
+            }
+        }
+        StatsRow(
+            stats = persistentListOf(0, 1, 2),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = "POPULAR",
+                color = Color.Transparent,
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier
+                    .graphicsLayer { scaleX = 0.8f; scaleY = 0.8f }
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+            )
+
+            Text(
+                text = "#100",
+                color = Color.Transparent,
+                style = MaterialTheme.typography.displaySmall,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.5f))
+            )
+        }
+    }
+}
+
+@Composable
+private fun LoadingMediaGenres(modifier: Modifier = Modifier) {
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+        modifier = modifier.fillMaxWidth()
+    ) {
+        persistentListOf(
+            "               ", "                    ", "         ", "             "
+        ).fastForEach {
+            Text(
+                text = it,
+                color = Color.Transparent,
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Medium,
+                maxLines = 1,
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.primaryContainer.copy(0.2f))
+                    .padding(horizontal = LocalPaddings.current.small)
+            )
+        }
+    }
+}
+
+@Serializable
+data class MediaPage(
+    val id: Int,
+    val source: String,
+    val mediaType: String,
+)

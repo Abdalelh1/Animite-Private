@@ -1,0 +1,99 @@
+query MediaQuery(
+    $id: Int,
+    $type: MediaType,
+    $perPage: Int
+) {
+    media: Media(id: $id, type: $type) {
+        id
+        bannerImage
+        coverImage {
+            extraLarge
+            large
+            medium
+            color
+        }
+
+        title {
+            userPreferred
+            romaji
+            english
+            native
+        }
+        description
+
+        ...AnimeInfo
+
+        averageScore
+        rankings {
+            rank
+            type
+            allTime
+        }
+
+        genres
+
+        characters(
+            sort: [RELEVANCE, ROLE, FAVOURITES_DESC],
+            page: 0,
+            perPage: $perPage
+        ) {
+            edges {
+                role
+                node {
+                    ...CharacterSmall
+                }
+            }
+        }
+
+        staff(
+            sort: [RELEVANCE, ROLE, FAVOURITES_DESC],
+            page: 0,
+            perPage: $perPage
+        ) {
+            edges {
+                role
+                node {
+                    ...StaffSmall
+                }
+            }
+        }
+
+        trailer {
+            id
+            site
+            thumbnail
+        }
+
+        streamingEpisodes {
+            title
+            thumbnail
+            url
+            site
+        }
+
+        relations {
+            edges {
+                node {
+                    ...MediaSmall
+                }
+                relationType(version: 2)
+            }
+        }
+
+        recommendations(
+            sort: RATING_DESC,
+            page: 0,
+            perPage: $perPage
+        ) {
+            nodes {
+                mediaRecommendation {
+                    ...MediaSmall
+                }
+            }
+        }
+    }
+}
+
+query Genres {
+    GenreCollection
+}

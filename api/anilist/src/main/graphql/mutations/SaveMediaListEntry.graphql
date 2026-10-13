@@ -1,0 +1,19 @@
+mutation SaveMediaListEntry(
+    $status: MediaListStatus,
+    $mediaId: Int!,
+    $score: Float,
+    $progress: Int,
+    $startedAt: FuzzyDateInput,
+    $completedAt: FuzzyDateInput,
+) {
+    SaveMediaListEntry(
+        status: $status,
+        mediaId: $mediaId,
+        score: $score,
+        progress: $progress,
+        startedAt: $startedAt,
+        completedAt: $completedAt,
+    ) {
+        mediaId
+    }
+}

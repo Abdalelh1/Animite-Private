@@ -1,0 +1,833 @@
+package com.imashnake.animite.api.anilist.sanitize.media
+
+import android.util.Log
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
+import com.imashnake.animite.api.anilist.MediaQuery
+import com.imashnake.animite.api.anilist.fragment.AnimeInfo
+import com.imashnake.animite.api.anilist.fragment.CharacterSmall
+import com.imashnake.animite.api.anilist.fragment.MediaMedium
+import com.imashnake.animite.api.anilist.fragment.MediaSmall
+import com.imashnake.animite.api.anilist.fragment.MediaTracking
+import com.imashnake.animite.api.anilist.fragment.StaffSmall
+import com.imashnake.animite.api.anilist.sanitize.media.Media.Format.Companion.sanitize
+import com.imashnake.animite.api.anilist.sanitize.media.Media.Relation.Companion.sanitize
+import com.imashnake.animite.api.anilist.sanitize.media.Media.Season.Companion.sanitize
+import com.imashnake.animite.api.anilist.sanitize.media.Media.Small.Type
+import com.imashnake.animite.api.anilist.sanitize.media.Media.Source.Companion.sanitize
+import com.imashnake.animite.api.anilist.sanitize.media.Media.Status.Companion.sanitize
+import com.imashnake.animite.api.anilist.sanitize.profile.User.TrackingStatus
+import com.imashnake.animite.api.anilist.type.CharacterRole
+import com.imashnake.animite.api.anilist.type.MediaFormat
+import com.imashnake.animite.api.anilist.type.MediaRankType
+import com.imashnake.animite.api.anilist.type.MediaRelation
+import com.imashnake.animite.api.anilist.type.MediaSeason
+import com.imashnake.animite.api.anilist.type.MediaSort
+import com.imashnake.animite.api.anilist.type.MediaSource
+import com.imashnake.animite.api.anilist.type.MediaStatus
+import com.imashnake.animite.api.anilist.type.ScoreFormat
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.datetime.LocalDate
+import kotlinx.datetime.TimeZone
+import kotlinx.datetime.atStartOfDayIn
+import kotlinx.datetime.format.MonthNames
+import java.util.Locale
+import kotlin.collections.listOfNotNull
+import kotlin.time.Clock
+import kotlin.time.Instant
+
+private const val HQ_DEFAULT = "hqdefault"
+private const val MAX_RES_DEFAULT = "maxresdefault"
+private const val SD_DEFAULT = "sddefault"
+
+private const val EXCEPTION_TAG = "exception"
+
+data class Media(
+    /** @see MediaQuery.Media.id */
+    val id: Int,
+    /** @see MediaQuery.Media.bannerImage */
+    val bannerImage: String?,
+    /** @see MediaQuery.Media.coverImage */
+    val coverImage: String?,
+    /** @see MediaQuery.CoverImage.color */
+    val color: String,
+    /** @see MediaQuery.Media.title */
+    val title: String?,
+    val otherTitles: ImmutableList<String>,
+    /** @see MediaQuery.Media.description */
+    val description: String,
+    /** @see AnimeInfo.NextAiringEpisode */
+    val nextAiring: NextAiring?,
+    /** @see MediaQuery.Media */
+    val info: ImmutableList<Info>,
+    /** @see AnimeInfo.seasonYear */
+    val year: String?,
+    /** @see AnimeInfo.season */
+    val season: Season?,
+    /** @see MediaQuery.Media.rankings */
+    val rankings: ImmutableList<Pair<Ranking.TimeSpan, ImmutableList<Ranking>>>,
+    /** @see MediaQuery.Media.genres */
+    val genres: ImmutableList<String>,
+    /** @see MediaQuery.Media.characters */
+    val characters: ImmutableList<Credit>,
+    /** @see MediaQuery.Media.staff */
+    val staff: ImmutableList<Credit>,
+    /** @see MediaQuery.Media.trailer */
+    val trailer: Trailer?,
+    /** @see MediaQuery.Media.streamingEpisodes */
+    val streamingEpisodes: ImmutableList<Episode>,
+    /** @see MediaQuery.Media.relations */
+    val relations: ImmutableList<Pair<Relation?, Small>>,
+    /** @see MediaQuery.Media.recommendations */
+    val recommendations: ImmutableList<Small>,
+) {
+    companion object {
+        fun getFormattedDate(
+            year: Int?,
+            month: Int?,
+            day: Int?,
+        ): String? {
+            if (year == null && month == null) return null
+            if (year != null && month == null && day != null) return year.toString()
+            val formattedDayYear = listOfNotNull(day, year).joinToString().ifEmpty { null }
+            val format = LocalDate.Format { monthName(MonthNames.ENGLISH_ABBREVIATED) }
+            val formattedMonth = month?.let { format.format(LocalDate(0, month, 1)) }
+            return listOfNotNull(formattedMonth, formattedDayYear).joinToString(" ")
+        }
+
+        private fun getEpochMillis(
+            year: Int?,
+            month: Int?,
+            day: Int?,
+        ): Long? {
+            return LocalDate(
+                year = year ?: return null,
+                month = month ?: return null,
+                day = day ?: return null
+            ).atStartOfDayIn(TimeZone.currentSystemDefault()).toEpochMilliseconds()
+        }
+
+        private fun getNextAiring(nextAiringEpisode: AnimeInfo.NextAiringEpisode?): NextAiring? {
+            return nextAiringEpisode?.let { nextEp ->
+                val airingAt = Instant.fromEpochSeconds(nextEp.airingAt.toLong())
+                if (airingAt <= Clock.System.now()) return null
+                NextAiring(
+                    airingAt = airingAt,
+                    episode = nextEp.episode
+                )
+            }
+        }
+
+        private fun getAnimeInfo(animeInfo: AnimeInfo?) = buildList {
+            if (
+                addAll(
+                    listOfNotNull(
+                        animeInfo?.format?.sanitize()?.let  { Info.Format(it) },
+                        animeInfo?.episodes?.let { Info.Item(InfoItem.EPISODES, it.toString()) },
+                        animeInfo?.duration?.let { Info.Item(InfoItem.DURATION, "$it mins") },
+                    )
+                )
+            ) {
+                add(Info.Divider)
+            }
+
+            if (
+                addAll(
+                    listOfNotNull(
+                        animeInfo?.status?.sanitize()?.let { Info.Status(it) },
+                        animeInfo?.season?.sanitize()?.let { Info.Season(it, animeInfo.seasonYear) },
+                        animeInfo?.startDate?.let { getFormattedDate(it.year, it.month, it.day) }?.let { Info.Item(InfoItem.START_DATE, it) },
+                        animeInfo?.endDate?.let { getFormattedDate(it.year, it.month, it.day) }?.let { Info.Item(InfoItem.END_DATE, it) },
+                    )
+                )
+            ) {
+                add(Info.Divider)
+            }
+
+            if (
+                !addAll(
+                    listOfNotNull(
+                        animeInfo?.studios?.nodes?.firstOrNull()?.name?.let { Info.Item(InfoItem.STUDIO, it) },
+                        animeInfo?.source?.sanitize()?.let { Info.Source(it) },
+                    )
+                )
+            ) {
+                removeLastOrNull()
+            }
+        }.toImmutableList()
+
+        private fun getRankings(
+            rankings: List<MediaQuery.Ranking?>?,
+            averageScore: Int?
+        ): ImmutableList<Pair<Ranking.TimeSpan, ImmutableList<Ranking>>> {
+            if (rankings == null) return persistentListOf()
+            val (allTimeRankings, yearSeasonRankings) = rankings.filterNotNull().partition { it.allTime == true }
+
+            return persistentListOf(getAllTimeRankings(allTimeRankings, averageScore)).addingAll(
+                elements = getYearSeasonRankings(yearSeasonRankings)
+            )
+        }
+
+        private fun getAllTimeRankings(
+            rankings: List<MediaQuery.Ranking>,
+            averageScore: Int?
+        ): Pair<Ranking.TimeSpan, ImmutableList<Ranking>> {
+            val rankings = rankings.mapNotNull {
+                if (it.type == MediaRankType.UNKNOWN__) return@mapNotNull null
+                Ranking(
+                    rank = it.rank,
+                    type = when (it.type) {
+                        MediaRankType.RATED -> Ranking.Type.RATED
+                        MediaRankType.POPULAR -> Ranking.Type.POPULAR
+                    }
+                )
+            } + listOfNotNull(
+                element = averageScore?.let {
+                    Ranking(rank = it, type = Ranking.Type.SCORE)
+                }
+            )
+
+            return Ranking.TimeSpan.ALL_TIME to rankings.toImmutableList()
+        }
+
+        private fun getYearSeasonRankings(
+            rankings: List<MediaQuery.Ranking>,
+        ): ImmutableList<Pair<Ranking.TimeSpan, ImmutableList<Ranking>>> {
+            val rankings = rankings.filter { it.type != MediaRankType.UNKNOWN__ }
+            val (ratedList, popularList) = rankings.partition { it.type == MediaRankType.RATED }
+
+            // We're assuming that rankings are returned in this order
+            // All time, Year, Season
+            return listOf(Ranking.TimeSpan.YEAR, Ranking.TimeSpan.SEASON).map { timeSpan ->
+                getTimeSpanToList(timeSpan, ratedList, popularList)
+            }.toImmutableList()
+        }
+
+        private fun getTimeSpanToList(
+            timeSpan: Ranking.TimeSpan,
+            ratedList: List<MediaQuery.Ranking>,
+            popularList: List<MediaQuery.Ranking>,
+        ): Pair<Ranking.TimeSpan, ImmutableList<Ranking>> {
+            val timeSpanIndex = timeSpan.index - 1
+            return timeSpan to listOfNotNull(
+                ratedList.getOrNull(timeSpanIndex)?.let {
+                    Ranking(
+                        rank = it.rank,
+                        type = Ranking.Type.RATED,
+                    )
+                },
+                popularList.getOrNull(timeSpanIndex)?.let {
+                    Ranking(
+                        rank = it.rank,
+                        type = Ranking.Type.POPULAR,
+                    )
+                },
+            ).toImmutableList()
+        }
+
+        private fun getStreamingEpisodes(streamingEpisodes: List<MediaQuery.StreamingEpisode?>?): ImmutableList<Episode> {
+            if (streamingEpisodes.isNullOrEmpty()) return persistentListOf()
+
+            val regex = Regex("""Episode\s+(\d+(?:\.\d+)?)(?:\s*-\s*(.+))?""")
+            return streamingEpisodes.mapNotNull {
+                it?.thumbnail ?: return@mapNotNull null
+                it.url ?: return@mapNotNull null
+                val match = it.title?.let { title -> regex.find(title) }
+                Episode(
+                    number = match?.groupValues[1],
+                    title = match?.groups[2]?.value?.lowercase(),
+                    thumbnail = it.thumbnail,
+                    url = it.url,
+                    site = it.site
+                )
+            }.toImmutableList()
+        }
+    }
+
+    enum class Format {
+        TV,
+        TV_SHORT,
+        MOVIE,
+        SPECIAL,
+        OVA,
+        ONA,
+        MUSIC,
+        MANGA,
+        NOVEL,
+        ONE_SHOT;
+
+        companion object {
+            fun animeFormats() = Format.entries.dropLast(3)
+            fun mangaFormats() = Format.entries.takeLast(3)
+
+            fun safeValueOf(rawValue: String): Format? = try {
+                valueOf(rawValue)
+            } catch (e: IllegalArgumentException) {
+                Log.e(EXCEPTION_TAG, "safeValueOf: $e; Format $rawValue not found.")
+                null
+            }
+
+            fun MediaFormat.sanitize() = safeValueOf(this.name)
+        }
+    }
+
+    enum class Status {
+        FINISHED,
+        RELEASING,
+        NOT_YET_RELEASED,
+        CANCELLED,
+        HIATUS;
+
+        companion object {
+            fun safeValueOf(rawValue: String): Status? = try {
+                valueOf(rawValue)
+            } catch (e: IllegalArgumentException) {
+                Log.e(EXCEPTION_TAG, "safeValueOf: $e; Status $rawValue not found.")
+                null
+            }
+
+            fun MediaStatus.sanitize() = safeValueOf(this.name)
+        }
+    }
+
+    enum class Season {
+        WINTER,
+        SPRING,
+        SUMMER,
+        FALL;
+
+        companion object {
+            fun safeValueOf(rawValue: String): Season? = try {
+                valueOf(rawValue)
+            } catch (e: IllegalArgumentException) {
+                Log.e(EXCEPTION_TAG, "safeValueOf: $e; Season $rawValue not found.")
+                null
+            }
+
+            fun MediaSeason.sanitize() = safeValueOf(this.name)
+        }
+    }
+
+    enum class Source {
+        ORIGINAL,
+        MANGA,
+        LIGHT_NOVEL,
+        VISUAL_NOVEL,
+        VIDEO_GAME,
+        OTHER,
+        NOVEL,
+        DOUJINSHI,
+        ANIME,
+        WEB_NOVEL,
+        LIVE_ACTION,
+        GAME,
+        COMIC,
+        MULTIMEDIA_PROJECT,
+        PICTURE_BOOK;
+
+        companion object {
+            fun safeValueOf(rawValue: String): Source? = try {
+                valueOf(rawValue)
+            } catch (e: IllegalArgumentException) {
+                Log.e(EXCEPTION_TAG, "safeValueOf: $e; Source $rawValue not found.")
+                null
+            }
+
+            fun MediaSource.sanitize() = safeValueOf(this.name)
+        }
+    }
+
+    enum class Relation {
+        ADAPTATION,
+        PREQUEL,
+        SEQUEL,
+        PARENT,
+        SIDE_STORY,
+        CHARACTER,
+        SUMMARY,
+        ALTERNATIVE,
+        SPIN_OFF,
+        OTHER,
+        SOURCE,
+        COMPILATION,
+        CONTAINS;
+
+        companion object {
+            fun safeValueOf(rawValue: String): Relation? = try {
+                valueOf(rawValue)
+            } catch (e: IllegalArgumentException) {
+                Log.e(EXCEPTION_TAG, "safeValueOf: $e; Source $rawValue not found.")
+                null
+            }
+
+            fun MediaRelation.sanitize() = safeValueOf(this.name)
+        }
+    }
+
+    enum class Sort {
+        POPULARITY,
+        TRENDING,
+        FAVOURITES,
+        SCORE,
+        EPISODES,
+        // This is used to get the "Date Added" sort.
+        ID;
+
+        companion object {
+            fun safeValueOf(rawValue: String): Sort? = try {
+                Sort.valueOf(rawValue)
+            } catch (e: IllegalArgumentException) {
+                Log.e(EXCEPTION_TAG, "safeValueOf: $e; Source $rawValue not found.")
+                null
+            }
+
+            fun pollute(sort: Sort, isDescending: Boolean): MediaSort {
+                return MediaSort.valueOf(sort.name + if (isDescending) "_DESC" else "")
+            }
+
+            fun MediaSort.isDescending() = this.name.contains("_DESC")
+
+            fun MediaSort.sanitize() = if (this.isDescending()) {
+                safeValueOf(this.name.removeSuffix("_DESC")) to true
+            } else {
+                safeValueOf(this.name) to false
+            }
+        }
+    }
+
+    enum class Language {
+        ROMAJI,
+        ENGLISH,
+        NATIVE,
+        DEFAULT,
+    }
+
+    @Immutable
+    sealed class Info(open val item: InfoItem) {
+        data class Format(
+            val format: Media.Format,
+        ) : Info(InfoItem.FORMAT)
+
+        data class Status(
+            val status: Media.Status,
+        ) : Info(InfoItem.STATUS)
+
+        data class Season(
+            val season: Media.Season,
+            val year: Int? = null,
+        ) : Info(InfoItem.SEASON)
+
+        data class Source(
+            val source: Media.Source,
+        ) : Info(InfoItem.SOURCE)
+
+        data class Item(
+            override val item: InfoItem,
+            val value: String,
+        ) : Info(item)
+
+        data object Divider : Info(InfoItem.DIVIDER)
+    }
+
+    enum class InfoItem {
+        FORMAT,
+        EPISODES,
+        DURATION,
+        STATUS,
+        START_DATE,
+        END_DATE,
+        SEASON,
+        STUDIO,
+        SOURCE,
+        DIVIDER,
+    }
+
+    @Stable
+    data class Ranking(
+        /** @see MediaQuery.Ranking.rank */
+        val rank: Int,
+        /** @see MediaQuery.Ranking.type */
+        val type: Type,
+    ) {
+        /** @see MediaQuery.Ranking.type */
+        enum class Type {
+            RATED,
+            POPULAR,
+            SCORE,
+        }
+
+        enum class TimeSpan(val index: Int) {
+            ALL_TIME(0),
+            YEAR(1),
+            SEASON(2),
+        }
+    }
+
+    @Immutable
+    data class NextAiring(
+        val airingAt: Instant,
+        val episode: Int
+    )
+
+    @Immutable
+    data class Credit(
+        /** @see CharacterSmall.id */
+        val id: Int,
+        /** @see CharacterSmall.image */
+        val image: String?,
+        /** @see CharacterSmall.Name.full */
+        val name: String?,
+        /** @see MediaQuery.Edge.role */
+        val role: String?,
+
+        /**
+         * Year, Month, Day.
+         * @see CharacterSmall.dateOfBirth
+         * */
+        val dob: String?,
+        /** @see CharacterSmall.favourites */
+        val favourites: String?,
+        /** @see CharacterSmall.Name.alternative */
+        val alternativeNames: String,
+
+        /** @see CharacterSmall.description */
+        val description: String?,
+    ) {
+        companion object {
+            fun getFormattedFavourites(favouritesCount: Int?): String? {
+                if (favouritesCount == null) return null
+                return if (favouritesCount >= 1000) {
+                    if (favouritesCount % 1000f < 100) {
+                        "${(favouritesCount / 1000f).toInt()}k"
+                    } else {
+                        "${String.format(Locale.getDefault(), format = "%.1f", favouritesCount / 1000f)}k"
+                    }
+                } else {
+                    favouritesCount.toString()
+                }
+            }
+
+            fun getDescription(
+                age: String?,
+                gender: String?,
+                description: String?
+            ): String? {
+                if (age == null && gender == null && description == null) return null
+                return listOfNotNull(
+                    age?.let { "<b>Age:</b> $it" },
+                    gender?.let { "<b>Gender:</b> $it" },
+                    description,
+                ).joinToString("<br>").addNewlineAfterParagraph()
+            }
+        }
+
+        internal constructor(query: CharacterSmall, role: String? = null) : this(
+            id = query.id,
+            image = query.image?.large,
+            name = query.name?.userPreferred ?: query.name?.full,
+            role = role,
+            dob = query.dateOfBirth?.let {
+                getFormattedDate(it.year, it.month, it.day)
+            },
+            favourites = getFormattedFavourites(query.favourites),
+            alternativeNames = query.name?.alternative.orEmpty().filterNotNull().joinToString(),
+            description = getDescription(
+                age = query.age,
+                gender = query.gender,
+                description = query.description,
+            ),
+        )
+
+        internal constructor(query: StaffSmall, role: String? = null) : this(
+            id = query.id,
+            image = query.image?.large,
+            name = query.name?.userPreferred ?: query.name?.full,
+            role = role,
+            dob = query.dateOfBirth?.let {
+                getFormattedDate(it.year, it.month, it.day)
+            },
+            favourites = getFormattedFavourites(query.favourites),
+            alternativeNames = query.name?.alternative.orEmpty().filterNotNull().joinToString(),
+            description = getDescription(
+                age = query.age?.toString(),
+                gender = query.gender,
+                description = query.description,
+            ),
+        )
+    }
+
+    @Immutable
+    data class Trailer(
+        /** @see MediaQuery.Trailer.id
+         * @see MediaQuery.Trailer.site */
+        val url: String?,
+        /** @see MediaQuery.Trailer.thumbnail */
+        val thumbnail: Thumbnail,
+    ) {
+        /** @see MediaQuery.Trailer.thumbnail */
+        enum class Site(val baseUrl: String) {
+            YOUTUBE("https://www.youtube.com/watch?v="),
+            DAILYMOTION("https://www.dailymotion.com/video/"),
+            UNKNOWN("")
+        }
+
+        data class Thumbnail(
+            val maxResDefault: String?,
+            val sdDefault: String?,
+            val defaultThumbnail: String?
+        )
+    }
+
+    @Immutable
+    data class Episode(
+        val number: String?,
+        val title: String?,
+        val thumbnail: String,
+        val url: String,
+        val site: String?,
+    )
+
+    internal constructor(
+        query: MediaQuery.Media,
+        language: Language
+    ) : this(
+        id = query.id,
+        bannerImage = query.bannerImage,
+        coverImage = query.coverImage?.extraLarge ?: query.coverImage?.large ?: query.coverImage?.medium,
+        color = query.coverImage?.color ?: "#00000000",
+        title = when (language) {
+            Language.DEFAULT -> query.title?.userPreferred
+            Language.ROMAJI -> query.title?.romaji
+            Language.ENGLISH -> query.title?.english
+            Language.NATIVE -> query.title?.native
+        } ?: query.title?.userPreferred,
+        otherTitles = listOfNotNull(
+            query.title?.romaji,
+            query.title?.english,
+            query.title?.native,
+        ).toImmutableList(),
+        description = query.description.orEmpty(),
+        nextAiring = getNextAiring(query.animeInfo.nextAiringEpisode),
+        info = getAnimeInfo(query.animeInfo),
+        year = query.animeInfo.seasonYear?.toString(),
+        season = query.animeInfo.season?.sanitize(),
+        rankings = getRankings(query.rankings, query.averageScore),
+        genres = query.genres?.filterNotNull().orEmpty().toImmutableList(),
+        characters = query.characters?.edges.orEmpty().mapNotNull {
+            if (it?.node?.characterSmall?.name == null) return@mapNotNull null
+            Credit(
+                query = it.node.characterSmall,
+                role = it.role.takeUnless {
+                    role -> role == CharacterRole.UNKNOWN__
+                }?.name?.lowercase()
+            )
+        }.toImmutableList(),
+        staff = query.staff?.edges.orEmpty().mapNotNull {
+            if (it?.node?.staffSmall?.name == null) return@mapNotNull null
+            Credit(
+                query = it.node.staffSmall,
+                role = it.role?.lowercase()
+            )
+        }.toImmutableList(),
+        trailer = if (query.trailer?.site == null || query.trailer.id == null) {
+            null
+        } else {
+            Trailer(
+                url = "${Trailer.Site.valueOf(query.trailer.site.uppercase()).baseUrl}${query.trailer.id}",
+                thumbnail = with(query.trailer) {
+                    Trailer.Thumbnail(
+                        maxResDefault = thumbnail?.takeIf {
+                            it.contains(HQ_DEFAULT)
+                        }?.replace(HQ_DEFAULT, MAX_RES_DEFAULT),
+                        sdDefault = thumbnail?.takeIf {
+                            it.contains(HQ_DEFAULT)
+                        }?.replace(HQ_DEFAULT, SD_DEFAULT),
+                        defaultThumbnail = thumbnail
+                    )
+                }
+            )
+        },
+        streamingEpisodes = getStreamingEpisodes(query.streamingEpisodes),
+        relations = query.relations?.edges.orEmpty().mapNotNull { edge ->
+            edge?.node?.mediaSmall?.let { edge.relationType?.sanitize() to Small(it, language) }
+        }.toImmutableList(),
+        recommendations = query.recommendations?.nodes.orEmpty().mapNotNull { node ->
+            node?.mediaRecommendation?.mediaSmall?.let { Small(it, language) }
+        }.toImmutableList()
+    )
+
+    @Immutable
+    data class Small(
+        /** @see MediaSmall.id */
+        val id: Int,
+        /** @see MediaSmall.type */
+        val type: Type,
+        /** @see MediaSmall.title */
+        val title: String?,
+        /** @see MediaSmall.coverImage */
+        val coverImage: String?
+    ) {
+        /** @see MediaSmall.type */
+        enum class Type(val type: String) {
+            ANIME("Anime"),
+            MANGA("Manga"),
+            UNKNOWN("Unknown"),
+        }
+
+        internal constructor(
+            query: MediaSmall,
+            language: Language
+        ) : this(
+            id = query.id,
+            type = query.type?.name?.let { Type.valueOf(it) } ?: Type.UNKNOWN,
+            coverImage = query.coverImage?.extraLarge ?: query.coverImage?.large,
+            title = when (language) {
+                Language.DEFAULT -> query.title?.userPreferred
+                Language.ROMAJI -> query.title?.romaji
+                Language.ENGLISH -> query.title?.english
+                Language.NATIVE -> query.title?.native
+            } ?: query.title?.userPreferred
+        )
+    }
+
+    @Immutable
+    data class Medium(
+        /** @see id */
+        val id: Int,
+        /** @see coverImage */
+        val coverImage: String?,
+        /** @see title */
+        val title: String?,
+        /** @see season */
+        val season: Season?,
+        /** @see seasonYear */
+        val seasonYear: Int?,
+        /** @see studios */
+        val studios: ImmutableList<String>,
+        /** @see format */
+        val format: Format?,
+        /** @see episodes */
+        val episodes: Int?,
+    ) {
+        internal constructor(
+            query: MediaMedium,
+            language: Language
+        ) : this(
+            id = query.id,
+            coverImage = query.coverImage?.extraLarge,
+            title = when (language) {
+                Language.DEFAULT -> query.title?.userPreferred
+                Language.ROMAJI -> query.title?.romaji
+                Language.ENGLISH -> query.title?.english
+                Language.NATIVE -> query.title?.native
+            } ?: query.title?.userPreferred,
+            season = query.season?.sanitize(),
+            seasonYear = query.seasonYear,
+            studios = query.studios?.nodes
+                .orEmpty()
+                .filter { it?.name != null }
+                .map { it!!.name }
+                .toImmutableList(),
+            format = query.format?.sanitize(),
+            episodes = query.episodes
+        )
+    }
+
+    @Immutable
+    data class Tracking(
+        val id: Int,
+        val type: Type,
+        val coverImage: String?,
+        val bannerImage: String?,
+        val color: String?,
+        val title: String?,
+        val season: Season?,
+        val seasonYear: Int?,
+        val isFavourite: Boolean,
+        val format: Format?,
+        val status: TrackingStatus,
+        val score: Score?,
+        val segments: Int?,
+        val progress: Int?,
+        val startedAt: FuzzyDate?,
+        val completedAt: FuzzyDate?,
+    ) {
+        internal constructor(
+            query: MediaTracking,
+            progress: Int?,
+            score: Float?,
+            scoreFormat: ScoreFormat,
+            status: TrackingStatus,
+            language: Language
+        ) : this(
+            id = query.id,
+            type = query.type?.name?.let { Type.valueOf(it) } ?: Type.UNKNOWN,
+            coverImage = query.coverImage?.large,
+            bannerImage = query.bannerImage,
+            color = query.coverImage?.color,
+            title = when (language) {
+                Language.DEFAULT -> query.title?.userPreferred
+                Language.ROMAJI -> query.title?.romaji
+                Language.ENGLISH -> query.title?.english
+                Language.NATIVE -> query.title?.native
+            } ?: query.title?.userPreferred,
+            season = query.season?.sanitize(),
+            seasonYear = query.seasonYear,
+            format = query.format?.sanitize(),
+            isFavourite = query.isFavourite,
+            segments = query.episodes ?: query.nextAiringEpisode?.episode ?: query.chapters,
+            status = status,
+            score = score?.let { Score(it, scoreFormat) },
+            progress = progress,
+            startedAt = query.mediaListEntry?.startedAt?.let {
+                FuzzyDate(
+                    formatted = getFormattedDate(it.year, it.month, it.day),
+                    epochMillis = getEpochMillis(it.year, it.month, it.day),
+                    yearMonthDay = Triple(it.year, it.month, it.day)
+                )
+            },
+            completedAt = query.mediaListEntry?.completedAt?.let {
+                FuzzyDate(
+                    formatted = getFormattedDate(it.year, it.month, it.day),
+                    epochMillis = getEpochMillis(it.year, it.month, it.day),
+                    yearMonthDay = Triple(it.year, it.month, it.day)
+                )
+            },
+        )
+    }
+
+    @Immutable
+    data class FuzzyDate(
+        val formatted: String?,
+        val epochMillis: Long?,
+        val yearMonthDay: Triple<Int?, Int?, Int?>,
+    )
+
+    @Immutable
+    data class Score(
+        val value: Float,
+        val normalizedValue: Float,
+        val format: ScoreFormat,
+    ) {
+        companion object {
+            fun normalizeValue(value: Float, format: ScoreFormat) = when(format) {
+                ScoreFormat.POINT_100 -> value / 100f
+                ScoreFormat.POINT_10_DECIMAL,
+                ScoreFormat.POINT_10 -> value / 10f
+                ScoreFormat.POINT_5 -> value / 5f
+                ScoreFormat.POINT_3 -> value / 3f
+                else -> value
+            }.coerceIn(0f, 1f)
+        }
+
+        internal constructor(score: Float, scoreFormat: ScoreFormat) : this(
+            value = score,
+            normalizedValue = normalizeValue(score, scoreFormat),
+            format = scoreFormat,
+        )
+    }
+}
+
+internal fun String.addNewlineAfterParagraph() = replace("</p>", "</p><br>")

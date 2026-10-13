@@ -1,0 +1,321 @@
+package com.imashnake.animite.media.player
+
+import android.content.Context
+import androidx.annotation.OptIn
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackParameters
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultLoadControl
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.ui.AspectRatioFrameLayout
+import com.imashnake.animite.media.player.cache.MediaCacheManager
+import com.imashnake.animite.media.source.AnimeStreamServer
+import com.imashnake.animite.media.source.EpisodeSourcesManager
+import dagger.hilt.android.lifecycle.HiltViewModel
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import javax.inject.Inject
+
+data class MediaTrackUiModel(
+    val groupIndex: Int,
+    val trackIndex: Int,
+    val name: String,
+    val language: String? = null,
+    val isSelected: Boolean = false,
+)
+
+@OptIn(UnstableApi::class)
+@HiltViewModel
+class VideoPlayerViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
+    val cacheManager: MediaCacheManager,
+) : ViewModel() {
+
+    private var exoPlayerInstance: ExoPlayer? = null
+    var activeServerUrl: String? = null
+        private set
+
+    private val _cacheSizeBytes = MutableStateFlow(0L)
+    val cacheSizeBytes = _cacheSizeBytes.asStateFlow()
+
+    private val _cacheLimitBytes = MutableStateFlow(cacheManager.maxCacheBytes)
+    val cacheLimitBytes = _cacheLimitBytes.asStateFlow()
+
+    private val _playbackSpeed = MutableStateFlow(1.0f)
+    val playbackSpeed = _playbackSpeed.asStateFlow()
+
+    private val _resizeMode = MutableStateFlow(AspectRatioFrameLayout.RESIZE_MODE_FIT)
+    val resizeMode = _resizeMode.asStateFlow()
+
+    private val _subtitlesEnabled = MutableStateFlow(true)
+    val subtitlesEnabled = _subtitlesEnabled.asStateFlow()
+
+    private val _subtitleTracks = MutableStateFlow<List<MediaTrackUiModel>>(emptyList())
+    val subtitleTracks = _subtitleTracks.asStateFlow()
+
+    private val _audioTracks = MutableStateFlow<List<MediaTrackUiModel>>(emptyList())
+    val audioTracks = _audioTracks.asStateFlow()
+
+    private val _isScreenLocked = MutableStateFlow(false)
+    val isScreenLocked = _isScreenLocked.asStateFlow()
+
+    private var sleepTimerJob: Job? = null
+    private val _sleepTimerMinutes = MutableStateFlow<Int?>(null)
+    val sleepTimerMinutes = _sleepTimerMinutes.asStateFlow()
+
+    private val _sleepTimerSecondsLeft = MutableStateFlow<Int?>(null)
+    val sleepTimerSecondsLeft = _sleepTimerSecondsLeft.asStateFlow()
+
+    fun setSleepTimer(minutes: Int?) {
+        sleepTimerJob?.cancel()
+        _sleepTimerMinutes.value = minutes
+        if (minutes == null) {
+            _sleepTimerSecondsLeft.value = null
+            return
+        }
+        if (minutes == -1) {
+            _sleepTimerSecondsLeft.value = null
+            return
+        }
+        _sleepTimerSecondsLeft.value = minutes * 60
+        sleepTimerJob = viewModelScope.launch {
+            var remaining = minutes * 60
+            while (remaining > 0) {
+                delay(1000)
+                remaining--
+                _sleepTimerSecondsLeft.value = remaining
+            }
+            exoPlayerInstance?.pause()
+            _sleepTimerMinutes.value = null
+            _sleepTimerSecondsLeft.value = null
+        }
+    }
+
+    fun loadEpisodeStream(
+        providerId: String,
+        episodeUrl: String,
+        onSuccess: (List<AnimeStreamServer>) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val provider = EpisodeSourcesManager.getProvider(providerId)
+                val servers = provider.getStreamServers(episodeUrl)
+                withContext(Dispatchers.Main) {
+                    onSuccess(servers)
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onError(e.localizedMessage ?: "Failed to load episode stream")
+                }
+            }
+        }
+    }
+
+    fun getOrCreatePlayer(): ExoPlayer {
+        exoPlayerInstance?.let { return it }
+
+        val cacheDataSourceFactory = cacheManager.createCacheDataSourceFactory()
+        val mediaSourceFactory = DefaultMediaSourceFactory(appContext)
+            .setDataSourceFactory(cacheDataSourceFactory)
+
+        val loadControl = DefaultLoadControl.Builder()
+            .setBufferDurationsMs(
+                /* minBufferMs = */ 15_000,
+                /* maxBufferMs = */ 60_000,
+                /* bufferForPlaybackMs = */ 2_500,
+                /* bufferForPlaybackAfterRebufferMs = */ 5_000,
+            )
+            .setPrioritizeTimeOverSizeThresholds(true)
+            .build()
+
+        val player = ExoPlayer.Builder(appContext)
+            .setMediaSourceFactory(mediaSourceFactory)
+            .setLoadControl(loadControl)
+            .setSeekBackIncrementMs(10000)
+            .setSeekForwardIncrementMs(10000)
+            .build()
+
+        exoPlayerInstance = player
+        player.addListener(object : Player.Listener {
+            override fun onTracksChanged(tracks: Tracks) {
+                updateTracksFromPlayer()
+            }
+        })
+        refreshCacheInfo()
+        return player
+    }
+
+    fun updateTracksFromPlayer() {
+        val player = exoPlayerInstance ?: return
+        val tracks = player.currentTracks
+        val subs = mutableListOf<MediaTrackUiModel>()
+        val audios = mutableListOf<MediaTrackUiModel>()
+
+        tracks.groups.forEachIndexed { groupIndex, group ->
+            when (group.type) {
+                C.TRACK_TYPE_TEXT -> {
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val lang = format.language
+                        val name = format.label ?: lang?.uppercase() ?: "Subtitle ${subs.size + 1}"
+                        subs.add(
+                            MediaTrackUiModel(
+                                groupIndex = groupIndex,
+                                trackIndex = i,
+                                name = name,
+                                language = lang,
+                                isSelected = group.isTrackSelected(i),
+                            )
+                        )
+                    }
+                }
+                C.TRACK_TYPE_AUDIO -> {
+                    for (i in 0 until group.length) {
+                        val format = group.getTrackFormat(i)
+                        val lang = format.language
+                        val name = format.label ?: lang?.uppercase() ?: "Audio ${audios.size + 1}"
+                        audios.add(
+                            MediaTrackUiModel(
+                                groupIndex = groupIndex,
+                                trackIndex = i,
+                                name = name,
+                                language = lang,
+                                isSelected = group.isTrackSelected(i),
+                            )
+                        )
+                    }
+                }
+                else -> {}
+            }
+        }
+        _subtitleTracks.value = subs
+        _audioTracks.value = audios
+    }
+
+    fun selectSubtitleTrack(track: MediaTrackUiModel?) {
+        val player = exoPlayerInstance ?: return
+        if (track == null) {
+            toggleSubtitles(false)
+            return
+        }
+        _subtitlesEnabled.value = true
+        val group = player.currentTracks.groups.getOrNull(track.groupIndex) ?: return
+        val override = TrackSelectionOverride(group.mediaTrackGroup, track.trackIndex)
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+            .setOverrideForType(override)
+            .build()
+        updateTracksFromPlayer()
+    }
+
+    fun selectAudioTrack(track: MediaTrackUiModel) {
+        val player = exoPlayerInstance ?: return
+        val group = player.currentTracks.groups.getOrNull(track.groupIndex) ?: return
+        val override = TrackSelectionOverride(group.mediaTrackGroup, track.trackIndex)
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setOverrideForType(override)
+            .build()
+        updateTracksFromPlayer()
+    }
+
+    fun prepareMedia(
+        server: AnimeStreamServer,
+        positionMs: Long = 0L,
+        playWhenReady: Boolean = true,
+    ) {
+        val player = getOrCreatePlayer()
+        if (activeServerUrl == server.url && player.playbackState != Player.STATE_IDLE) {
+            return
+        }
+        activeServerUrl = server.url
+
+        val cacheFactory = cacheManager.createCacheDataSourceFactory(server.headers)
+        val mediaSourceFactory = DefaultMediaSourceFactory(appContext)
+            .setDataSourceFactory(cacheFactory)
+
+        val mediaSource = mediaSourceFactory.createMediaSource(MediaItem.fromUri(server.url))
+        player.setMediaSource(mediaSource, positionMs)
+        player.prepare()
+        player.playWhenReady = playWhenReady
+        refreshCacheInfo()
+        updateTracksFromPlayer()
+    }
+
+    fun setPlaybackSpeed(speed: Float) {
+        _playbackSpeed.value = speed
+        exoPlayerInstance?.playbackParameters = PlaybackParameters(speed)
+    }
+
+    fun setResizeMode(mode: Int) {
+        _resizeMode.value = mode
+    }
+
+    fun toggleSubtitles(enabled: Boolean) {
+        _subtitlesEnabled.value = enabled
+        exoPlayerInstance?.let { player ->
+            val parameters = player.trackSelectionParameters
+                .buildUpon()
+                .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !enabled)
+                .build()
+            player.trackSelectionParameters = parameters
+            updateTracksFromPlayer()
+        }
+    }
+
+    fun toggleScreenLock() {
+        _isScreenLocked.value = !_isScreenLocked.value
+    }
+
+    fun setScreenLocked(locked: Boolean) {
+        _isScreenLocked.value = locked
+    }
+
+    fun refreshCacheInfo() {
+        _cacheSizeBytes.value = cacheManager.getCurrentCacheSizeBytes()
+        _cacheLimitBytes.value = cacheManager.maxCacheBytes
+    }
+
+    fun clearCache() {
+        cacheManager.clearCache()
+        refreshCacheInfo()
+    }
+
+    fun setCacheLimit(limitBytes: Long) {
+        cacheManager.maxCacheBytes = limitBytes
+        _cacheLimitBytes.value = limitBytes
+    }
+
+    fun seekRelative(offsetMs: Long) {
+        exoPlayerInstance?.let { player ->
+            val target = (player.currentPosition + offsetMs).coerceIn(0L, player.duration.coerceAtLeast(0L))
+            player.seekTo(target)
+        }
+    }
+
+    fun releasePlayer() {
+        exoPlayerInstance?.release()
+        exoPlayerInstance = null
+        activeServerUrl = null
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        releasePlayer()
+    }
+}

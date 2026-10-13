@@ -1,0 +1,110 @@
+package com.imashnake.animite.theme
+
+import android.os.Build
+import androidx.compose.animation.core.tween
+import androidx.compose.material3.LocalRippleConfiguration
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MotionScheme
+import androidx.compose.material3.RippleConfiguration
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
+import com.imashnake.animite.core.ui.DayPart
+import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.core.ui.LocalTimeContext
+import com.imashnake.animite.core.ui.Paddings
+import com.imashnake.animite.core.ui.TimeContext
+import com.imashnake.animite.core.ui.produceTimeContext
+import com.imashnake.animite.core.ui.rememberDefaultPaddings
+import com.imashnake.animite.media.ext.modify
+import com.materialkolor.PaletteStyle
+import com.materialkolor.ktx.animateColorScheme
+import com.materialkolor.rememberDynamicColorScheme
+import kotlinx.datetime.LocalTime
+import kotlin.math.floor
+
+@Composable
+fun AnimiteTheme(
+    paddings: Paddings = rememberDefaultPaddings(),
+    useDarkTheme: Boolean,
+    isAmoled: Boolean,
+    useSystemColorScheme: Boolean,
+    dayHour: Float?,
+    content: @Composable () -> Unit,
+) {
+    val dynamicColor = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && useSystemColorScheme
+    val context = LocalContext.current
+    val timeContext by if (dayHour != null) {
+        remember(dayHour) {
+            derivedStateOf {
+                TimeContext.calculateFromTime(
+                    LocalTime(
+                        hour = floor(dayHour).toInt(),
+                        minute = ((dayHour - floor(dayHour).toInt()) * 60).toInt()
+                    )
+                )
+            }
+        }
+    } else {
+        produceTimeContext()
+    }
+
+    val stops = when (timeContext.dayPart) {
+        DayPart.MORNING -> Triple(0xFF007695, 0xFFC8C4A3, 0xFFFFE8A5)
+        DayPart.AFTERNOON -> Triple(0xFF7AAEDD, 0xFFA1C8F5, 0xFFD1E4F6)
+        DayPart.EVENING -> Triple(0xFF5F81E2, 0xFFBF98B7, 0xFFCDACC2)
+        DayPart.NIGHT -> Triple(0xFF001020, 0xFF112B3A, 0xFF112B3A)
+    }
+
+    val staticColorScheme = rememberDynamicColorScheme(
+        seedColor = Color(stops.first),
+        primary = Color(stops.second),
+        secondary = Color(stops.third),
+        isDark = useDarkTheme,
+        isAmoled = isAmoled,
+        style = PaletteStyle.Vibrant,
+    )
+    val animiteColorScheme = remember(
+        useDarkTheme,
+        isAmoled,
+        dynamicColor,
+        stops,
+    ) {
+        when {
+            dynamicColor && useDarkTheme -> dynamicDarkColorScheme(context)
+            dynamicColor && !useDarkTheme -> dynamicLightColorScheme(context)
+            else -> staticColorScheme
+        }.modify(useDarkTheme, isAmoled)
+    }
+
+    val animiteRippleTheme = RippleConfiguration(color = MaterialTheme.colorScheme.primary)
+
+    val currentLocale = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+        androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    } else {
+        @Suppress("DEPRECATION")
+        androidx.compose.ui.platform.LocalConfiguration.current.locale
+    }
+    val isArabic = currentLocale?.language == "ar"
+    val typography = if (isArabic) CairoTypography else AnimiteTypography
+
+    MaterialExpressiveTheme(
+        colorScheme = animateColorScheme(animiteColorScheme, animationSpec = { tween(500) }),
+        typography = typography,
+        motionScheme = MotionScheme.expressive()
+    ) {
+        CompositionLocalProvider(
+            LocalRippleConfiguration provides animiteRippleTheme,
+            LocalPaddings provides paddings,
+            LocalTimeContext provides timeContext,
+            content = content,
+        )
+    }
+}

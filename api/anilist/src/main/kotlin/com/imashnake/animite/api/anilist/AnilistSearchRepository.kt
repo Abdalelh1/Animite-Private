@@ -1,0 +1,50 @@
+package com.imashnake.animite.api.anilist
+
+import com.apollographql.apollo.ApolloClient
+import com.apollographql.apollo.api.Optional
+import com.apollographql.cache.normalized.FetchPolicy
+import com.apollographql.cache.normalized.fetchPolicy
+import com.imashnake.animite.api.anilist.sanitize.media.Media
+import com.imashnake.animite.api.anilist.type.MediaSort
+import com.imashnake.animite.api.anilist.type.MediaType
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.toImmutableList
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+
+/**
+ * Repository for fetching media search results (e.g., search bar).
+ *
+ * @param apolloClient Default apollo client.
+ * @property fetchSearch Fetch a list of `search`es.
+ */
+class AnilistSearchRepository(
+    private val apolloClient: ApolloClient
+) {
+    fun fetchSearch(
+        type: MediaType,
+        perPage: Int,
+        search: String,
+        isNsfwEnabled: Boolean,
+        language: Media.Language = Media.Language.DEFAULT,
+    ): Flow<Result<ImmutableList<Media.Medium>>> {
+        return apolloClient
+            .query(
+                MediaMediumListQuery(
+                    type = Optional.presentIfNotNull(type),
+                    perPage = Optional.presentIfNotNull(perPage),
+                    search = Optional.presentIfNotNull(search),
+                    sort = Optional.present(listOf(MediaSort.POPULARITY_DESC)),
+                    isAdult = Optional.presentIfNotNull(if (isNsfwEnabled) null else false)
+                )
+            )
+            .fetchPolicy(FetchPolicy.CacheAndNetwork)
+            .toFlow()
+            .filter { it.exception == null }
+            .asResult {
+                it.page!!.media.orEmpty().filterNotNull().map { query ->
+                    Media.Medium(query.mediaMedium, language)
+                }.toImmutableList()
+            }
+    }
+}

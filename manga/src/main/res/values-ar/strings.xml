@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="okaeri" translatable="false">おかえり</string>
+    <string name="trending_now">الرائج الآن</string>
+    <string name="all_time_popular">الأكثر شعبية على الإطلاق</string>
+</resources>

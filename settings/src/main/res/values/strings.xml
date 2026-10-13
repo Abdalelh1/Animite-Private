@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings">Settings</string>
+
+    <string name="appearance">Appearance</string>
+
+    <string name="theme">Theme</string>
+    <string name="dark">Dark</string>
+    <string name="light">Light</string>
+    <string name="system">Device</string>
+    <string name="palette">Use system color scheme</string>
+    <string name="amoled">AMOLED</string>
+    <string name="density">Density</string>
+
+    <string name="preferences">Preferences</string>
+
+    <string name="nsfw">NSFW</string>
+    <string name="title_language">Title Language</string>
+    <string name="list_size">List Size</string>
+    <string name="anime_lists">Anime Lists</string>
+    <string name="manga_lists">Manga Lists</string>
+
+    <string name="profile_settings">Profile</string>
+    <string name="show_description">Show description</string>
+    <string name="profile_color">Set profile color</string>
+    <string name="use_expressive_progress_indicator">Use expressive progress indicator</string>
+    <string name="mlue">mlue</string>
+    <string name="score_format">Score format</string>
+
+    <string name="about">About</string>
+
+    <string name="app_icon">App Icon</string>
+    <string name="discord">Discord</string>
+    <string name="github">GitHub</string>
+    <string name="privacy_policy">Privacy Policy</string>
+
+    <string name="dev_options">Developer Options</string>
+
+    <string name="already_developer">You are already a developer!</string>
+    <plurals name="almost_developer">
+        <item quantity="one">%1$d step from being a developer!</item>
+        <item quantity="other">%1$d steps from being a developer!</item>
+    </plurals>
+    <string name="now_developer">You are now a developer!</string>
+    <string name="disabled_dev_options">"Disabled developer options!"</string>
+
+    <string name="day_part">Set day part</string>
+    <string name="day_hour">Set day hour</string>
+    <string name="based_on_animite">Based on Animite</string>
+    <string name="language">Language</string>
+    <string name="language_ar">العربية</string>
+    <string name="language_en">English</string>
+</resources>

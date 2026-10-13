@@ -1,0 +1,148 @@
+package com.imashnake.animite.api.anilist
+
+import com.apollographql.apollo.ApolloClient
+import com.apollographql.apollo.api.Optional
+import com.apollographql.cache.normalized.FetchPolicy
+import com.apollographql.cache.normalized.fetchPolicy
+import com.imashnake.animite.api.anilist.sanitize.media.Media
+import com.imashnake.animite.api.anilist.sanitize.profile.User
+import com.imashnake.animite.api.anilist.sanitize.profile.User.TrackingStatus.Companion.pollute
+import com.imashnake.animite.api.anilist.type.FuzzyDateInput
+import com.imashnake.animite.api.anilist.type.MediaListOptionsInput
+import com.imashnake.animite.api.anilist.type.MediaType
+import com.imashnake.animite.api.anilist.type.ScoreFormat
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.filter
+
+/**
+ * Repository for anything user related. Including the [ViewerQuery.Viewer].
+ *
+ * @param apolloClient Client with the [`Authorization` header](https://anilist.gitbook.io/anilist-apiv2-docs/overview/oauth/implicit-grant#making-authenticated-requests).
+ * @property fetchViewer Fetches the current user with an authorized [apolloClient].
+ * @property fetchUserMediaList Fetches a chunked list of media associated with the user.
+ */
+class AnilistUserRepository(
+    private val apolloClient: ApolloClient
+) {
+    fun fetchViewer(
+        useNetwork: Boolean,
+        language: Media.Language = Media.Language.DEFAULT,
+    ): Flow<Result<User>> {
+        return apolloClient.query(ViewerQuery())
+            .fetchPolicy(
+                fetchPolicy = if (useNetwork) {
+                    FetchPolicy.NetworkFirst
+                } else FetchPolicy.CacheFirst
+            )
+            .toFlow()
+            .filter { it.exception == null }
+            .asResult { User(it.viewer?.user!!, language) }
+    }
+
+    /** @param id The id of the user. */
+    fun fetchUserMediaList(
+        id: Int?,
+        type: MediaType?,
+        useNetwork: Boolean,
+        language: Media.Language = Media.Language.DEFAULT,
+        scoreFormat: ScoreFormat,
+        mediaListOrder: List<String>
+    ): Flow<Result<User.MediaCollection>> {
+        return apolloClient.query(
+            UserMediaListQuery(
+                userId = Optional.presentIfNotNull(id),
+                type = Optional.presentIfNotNull(type),
+                scoreFormat = Optional.presentIfNotNull(scoreFormat)
+            )
+        )
+        .fetchPolicy(
+            fetchPolicy = if (useNetwork) {
+                FetchPolicy.NetworkFirst
+            } else FetchPolicy.CacheFirst
+        )
+        .toFlow()
+        .filter { it.exception == null }
+        .asResult { User.MediaCollection(it, type, language, scoreFormat, mediaListOrder) }
+    }
+
+    fun toggleFavourite(type: Media.Small.Type, id: Int?) = apolloClient
+        .mutation(
+            ToggleFavouriteMutation(
+                animeId = Optional.presentIfNotNull(id.takeIf { type == Media.Small.Type.ANIME }),
+                mangaId = Optional.presentIfNotNull(id.takeIf { type == Media.Small.Type.MANGA })
+            )
+        )
+        .fetchPolicy(FetchPolicy.NetworkOnly)
+        .toFlow()
+        .asResult { it.ToggleFavourite }
+
+    fun updateMediaListEntry(params: EntryUpdateParams) = apolloClient
+        // TODO: Enable optimistic updates.
+        .mutation(
+            SaveMediaListEntryMutation(
+                mediaId = params.id,
+                status = Optional.presentIfNotNull(params.status.pollute()),
+                score = Optional.presentIfNotNull(params.score?.value?.toDouble()),
+                progress = Optional.presentIfNotNull(params.progress),
+                startedAt = Optional.presentIfNotNull(
+                    params.startedAt?.let {
+                        FuzzyDateInput(
+                            year = Optional.presentIfNotNull(it.first),
+                            month = Optional.presentIfNotNull(it.second),
+                            day = Optional.presentIfNotNull(it.third),
+                        )
+                    }
+                ),
+                completedAt = Optional.presentIfNotNull(
+                    params.completedAt?.let {
+                        FuzzyDateInput(
+                            year = Optional.presentIfNotNull(it.first),
+                            month = Optional.presentIfNotNull(it.second),
+                            day = Optional.presentIfNotNull(it.third),
+                        )
+                    }
+                )
+            )
+        )
+        .fetchPolicy(FetchPolicy.NetworkOnly)
+        .toFlow()
+        .asResult { it.SaveMediaListEntry }
+
+    fun updateUser(
+        profileColor: String? = null,
+        scoreFormat: ScoreFormat? = null,
+        animeSectionOrder: List<String>? = null,
+        mangaSectionOrder: List<String>? = null,
+    ): Flow<Result<UpdateUserMutation.UpdateUser?>> {
+        return apolloClient
+            // TODO: Enable optimistic updates.
+            .mutation(
+                UpdateUserMutation(
+                    profileColor = Optional.presentIfNotNull(profileColor),
+                    scoreFormat = Optional.presentIfNotNull(scoreFormat),
+                    animeListOptions = Optional.presentIfNotNull(
+                        MediaListOptionsInput(
+                            sectionOrder = Optional.presentIfNotNull(animeSectionOrder)
+                        )
+                    ),
+                    mangaListOptions = Optional.presentIfNotNull(
+                        MediaListOptionsInput(
+                            sectionOrder = Optional.presentIfNotNull(mangaSectionOrder)
+                        )
+                    )
+                )
+            )
+            .fetchPolicy(FetchPolicy.NetworkOnly)
+            .toFlow()
+            .asResult { it.UpdateUser }
+    }
+}
+
+data class EntryUpdateParams(
+    val id: Int,
+    val status: User.TrackingStatus,
+    val score: Media.Score?,
+    val progress: Int?,
+    val startedAt: Triple<Int?, Int?, Int?>?,
+    val completedAt: Triple<Int?, Int?, Int?>?,
+)

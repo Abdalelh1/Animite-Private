@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="filter">تصفية</string>
+    <string name="sort">ترتيب</string>
+    <string name="type">النوع</string>
+    <string name="season">الموسم</string>
+    <string name="genres">التصنيفات</string>
+    <string name="format">الصيغة</string>
+    <string name="status">الحالة</string>
+    <string name="year">السنة</string>
+    <string name="others">أخرى</string>
+
+    <string name="adult">للبالغين (+18)</string>
+
+    <string name="increase_year">زيادة السنة</string>
+    <string name="decrease_year">إنقاص السنة</string>
+
+    <string name="tune">ضبط</string>
+    <string name="search">بحث</string>
+
+    <string name="include_genre">مضمّن</string>
+    <string name="exclude_genre">مستبعد</string>
+    <string name="all_genres">الكل</string>
+
+    <string name="reset_all">إعادة ضبط الكل</string>
+    <string name="done">تم</string>
+
+    <!-- SearchFrontDrop -->
+    <string name="quick_search">بحث سريع</string>
+    <string name="collapse">طي</string>
+    <string name="close">إغلاق</string>
+    <plurals name="episodes">
+        <item quantity="zero">%1$d حلقة</item>
+        <item quantity="one">حلقة واحدة</item>
+        <item quantity="two">حلقتان</item>
+        <item quantity="few">%1$d حلقات</item>
+        <item quantity="many">%1$d حلقة</item>
+        <item quantity="other">%1$d حلقة</item>
+    </plurals>
+</resources>

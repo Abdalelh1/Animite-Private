@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="comfy">مريح</string>
+    <string name="cozy">متناسق</string>
+    <string name="compact">مدمج</string>
+
+    <string name="drag_handle">مقبض السحب</string>
+</resources>

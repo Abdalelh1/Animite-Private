@@ -1,0 +1,178 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">Back</string>
+
+    <string name="format">Format</string>
+    <string name="episodes">Episodes</string>
+    <string name="duration">Duration</string>
+    <string name="status">Status</string>
+    <string name="start_date">Start Date</string>
+    <string name="end_date">End Date</string>
+    <string name="season">Season</string>
+    <string name="season_year">Season Year</string>
+    <string name="studios">Studios</string>
+    <string name="source">Source</string>
+
+    <!-- Format -->
+    <string name="tv">TV</string>
+    <string name="tv_short">TV Short</string>
+    <string name="movie">Movie</string>
+    <string name="special">Special</string>
+    <string name="ova">OVA</string>
+    <string name="ona">ONA</string>
+    <string name="music">Music</string>
+    <string name="manga">Manga</string>
+    <string name="novel">Novel</string>
+    <string name="one_shot">One Shot</string>
+
+    <!-- Status -->
+    <string name="finished">Finished</string>
+    <string name="releasing">Releasing</string>
+    <string name="not_released">Not Released</string>
+    <string name="cancelled">Cancelled</string>
+    <string name="hiatus">Hiatus</string>
+
+    <!-- Season -->
+    <string name="winter">Winter</string>
+    <string name="spring">Spring</string>
+    <string name="summer">Summer</string>
+    <string name="fall">Fall</string>
+
+    <!-- Source -->
+    <string name="original">Original</string>
+<!--    <string name="manga">Manga</string>-->
+    <string name="light_novel">Light Novel</string>
+    <string name="visual_novel">Visual Novel</string>
+    <string name="video_game">Video Game</string>
+    <string name="other">Other</string>
+<!--    <string name="novel">Novel</string>-->
+    <string name="doujinshi">Doujinshi</string>
+    <string name="anime">Anime</string>
+    <string name="web_novel">Web Novel</string>
+    <string name="live_action">Live Action</string>
+    <string name="game">Game</string>
+    <string name="comic">Comic</string>
+    <string name="multimedia_project">Multimedia Project</string>
+    <string name="picture_book">Picture Book</string>
+
+    <string name="all_time">All Time</string>
+    <string name="year">Year</string>
+<!--    <string name="season">Season</string>-->
+
+    <string name="rated">RATED</string>
+    <string name="popular">POPULAR</string>
+    <string name="ranking_score">SCORE</string>
+
+    <string name="no_rankings">No rankings available</string>
+
+    <string name="characters">Characters</string>
+    <string name="staff">Staff</string>
+    <string name="trailer">Trailer</string>
+    <string name="watch">Watch</string>
+    <string name="relations">Relations</string>
+    <string name="recommendations">Recommendations</string>
+    <string name="list_to_grid">List to grid</string>
+    
+    <plurals name="episode_count">
+        <item quantity="one">%1$d episode</item>
+        <item quantity="other">%1$d episodes</item>
+    </plurals>
+
+    <string name="adaptation_relation">adaptation</string>
+    <string name="prequel_relation">prequel</string>
+    <string name="sequel_relation">sequel</string>
+    <string name="parent_relation">parent</string>
+    <string name="side_story_relation">side story</string>
+    <string name="character_relation">character</string>
+    <string name="summary_relation">summary</string>
+    <string name="alternative_relation">alternative</string>
+    <string name="spin_off_relation">spin off</string>
+    <string name="other_relation">other</string>
+    <string name="source_relation">source</string>
+    <string name="compilation_relation">compilation</string>
+    <string name="contains_relation">contains</string>
+
+    <!-- Countdown -->
+    <string name="episode_airing_countdown">Ep %1$d in %2$s</string>
+    <string name="countdown_days">%1$dd</string>
+    <string name="countdown_hours">%1$dh</string>
+    <string name="countdown_minutes">%1$dm</string>
+    <string name="countdown_seconds">%1$ds</string>
+
+    <string name ="sort_popularity">Popularity</string>
+    <string name ="sort_trending">Trending</string>
+    <string name ="sort_favourites">Favourites</string>
+    <string name ="sort_score">Score</string>
+    <string name ="sort_episodes">Episode Count</string>
+    <string name ="sort_date_added">Date Added</string>
+
+    <string name="language_default">Default</string>
+    <string name="language_romaji">Romaji</string>
+    <string name="language_english">English</string>
+    <string name="language_native">日本語</string>
+
+    <string name="media_type_anime">Anime</string>
+    <string name="media_type_manga">Manga</string>
+    <string name="streaming_episode">Streaming episode</string>
+
+    <string name="episode_sources">Episodes &amp; Streams</string>
+    <string name="select_server">Select Server</string>
+    <string name="no_episodes_found">No episodes found from this source</string>
+    <string name="searching_source">Searching source…</string>
+    <string name="open_in_browser">Open in browser</string>
+    <string name="episode_label">Episode %1$s</string>
+    <string name="loading_stream">Loading stream…</string>
+    <string name="servers_count">%1$d servers</string>
+    <string name="source_not_available">Source temporarily unavailable</string>
+
+    <string name="tab_overview">Overview</string>
+    <string name="tab_episodes">Episodes</string>
+    <string name="tab_characters">Characters</string>
+    <string name="tab_relations">Relations</string>
+    <string name="add_to_library">Add to Library</string>
+    <string name="start_watching">Start Watching</string>
+    <string name="read_more">Read more</string>
+    <string name="show_less">Show less</string>
+    <string name="watch_on">Watch on %1$s</string>
+    <string name="no_episodes_yet">No episodes available yet</string>
+    <string name="synopsis">Story</string>
+    <string name="next_episode">Next Episode</string>
+    <string name="official_streaming_services">Official Streaming Services</string>
+    <string name="select_quality">Select Quality</string>
+    <string name="no_playable_quality">No playable quality currently available</string>
+    <string name="playback_failed">Playback failed</string>
+    <string name="retry">Retry</string>
+    <string name="qualities_count">%1$d qualities</string>
+    <string name="player_settings">Player Settings</string>
+    <string name="cache_settings">Cache Settings</string>
+    <string name="current_cache_size">Current Cache Size</string>
+    <string name="clear_cache">Clear Player Cache</string>
+    <string name="cache_cleared">Cache cleared successfully</string>
+    <string name="cache_limit">Cache Limit</string>
+    <string name="playback_speed">Playback Speed</string>
+    <string name="aspect_ratio">Aspect Ratio</string>
+    <string name="aspect_fit">Fit</string>
+    <string name="aspect_fill">Fill</string>
+    <string name="aspect_zoom">Zoom</string>
+    <string name="subtitles">Subtitles</string>
+    <string name="subtitles_enabled">Subtitles Enabled</string>
+    <string name="subtitles_disabled">Subtitles Disabled</string>
+    <string name="screen_locked">Screen Locked</string>
+    <string name="tap_to_unlock">Tap to Unlock</string>
+    <string name="pip_mode">Picture-in-Picture</string>
+    <string name="sleep_timer">Sleep Timer</string>
+    <string name="timer_off">Off</string>
+    <string name="timer_15_min">15 Minutes</string>
+    <string name="timer_30_min">30 Minutes</string>
+    <string name="timer_45_min">45 Minutes</string>
+    <string name="timer_60_min">60 Minutes</string>
+    <string name="timer_end_of_episode">End of Episode</string>
+    <string name="audio_track">Audio Track</string>
+    <string name="cast">Cast</string>
+    <string name="cast_no_devices">No cast devices detected on local network</string>
+    <string name="more_options">More Options</string>
+    <string name="episodes_drawer">Episode</string>
+    <string name="download_action">Download</string>
+    <string name="download_not_supported">Direct download is not available for this stream</string>
+</resources>
+

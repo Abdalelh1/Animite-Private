@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="back">رجوع</string>
+
+    <string name="format">الصيغة</string>
+    <string name="episodes">الحلقات</string>
+    <string name="duration">المدة</string>
+    <string name="status">الحالة</string>
+    <string name="start_date">تاريخ البدء</string>
+    <string name="end_date">تاريخ الانتهاء</string>
+    <string name="season">الموسم</string>
+    <string name="season_year">سنة الموسم</string>
+    <string name="studios">الاستوديوهات</string>
+    <string name="source">المصدر</string>
+
+    <!-- Format -->
+    <string name="tv">تلفاز</string>
+    <string name="tv_short">تلفاز قصير</string>
+    <string name="movie">فيلم</string>
+    <string name="special">خاص</string>
+    <string name="ova">أوفا (OVA)</string>
+    <string name="ona">أونا (ONA)</string>
+    <string name="music">موسيقى</string>
+    <string name="manga">مانجا</string>
+    <string name="novel">رواية</string>
+    <string name="one_shot">ون شوت</string>
+
+    <!-- Status -->
+    <string name="finished">مكتمل</string>
+    <string name="releasing">مستمر</string>
+    <string name="not_released">لم يصدر بعد</string>
+    <string name="cancelled">ملغى</string>
+    <string name="hiatus">متوقف مؤقتاً</string>
+
+    <!-- Season -->
+    <string name="winter">الشتاء</string>
+    <string name="spring">الربيع</string>
+    <string name="summer">الصيف</string>
+    <string name="fall">الخريف</string>
+
+    <!-- Source -->
+    <string name="original">أصلي</string>
+    <string name="light_novel">رواية خفيفة</string>
+    <string name="visual_novel">رواية مرئية</string>
+    <string name="video_game">لعبة فيديو</string>
+    <string name="other">أخرى</string>
+    <string name="doujinshi">دوجينشي</string>
+    <string name="anime">أنمي</string>
+    <string name="web_novel">رواية ويب</string>
+    <string name="live_action">تمثيل واقعي</string>
+    <string name="game">لعبة</string>
+    <string name="comic">قصص مصورة</string>
+    <string name="multimedia_project">مشروع وسائط متعددة</string>
+    <string name="picture_book">كتاب مصور</string>
+
+    <string name="all_time">كل الأوقات</string>
+    <string name="year">السنة</string>
+
+    <string name="rated">التقييم</string>
+    <string name="popular">الشهرة</string>
+    <string name="ranking_score">النتيجة</string>
+
+    <string name="no_rankings">لا تتوفر تصنيفات</string>
+
+    <string name="characters">الشخصيات</string>
+    <string name="staff">طاقم العمل</string>
+    <string name="trailer">العرض الدعائي</string>
+    <string name="watch">مشاهدة</string>
+    <string name="relations">الأعمال ذات الصلة</string>
+    <string name="recommendations">ترشيحات مشابهة</string>
+    <string name="list_to_grid">تغيير العرض إلى شبكة</string>
+    
+    <plurals name="episode_count">
+        <item quantity="zero">%1$d حلقة</item>
+        <item quantity="one">حلقة واحدة</item>
+        <item quantity="two">حلقتان</item>
+        <item quantity="few">%1$d حلقات</item>
+        <item quantity="many">%1$d حلقة</item>
+        <item quantity="other">%1$d حلقة</item>
+    </plurals>
+
+    <string name="adaptation_relation">اقتباس</string>
+    <string name="prequel_relation">جزء سابق</string>
+    <string name="sequel_relation">جزء لاحق</string>
+    <string name="parent_relation">أصل</string>
+    <string name="side_story_relation">قصة جانبية</string>
+    <string name="character_relation">شخصية</string>
+    <string name="summary_relation">ملخص</string>
+    <string name="alternative_relation">بديل</string>
+    <string name="spin_off_relation">عمل مشتق</string>
+    <string name="other_relation">أخرى</string>
+    <string name="source_relation">مصدر</string>
+    <string name="compilation_relation">تجميع</string>
+    <string name="contains_relation">يحتوي</string>
+
+    <!-- Countdown -->
+    <string name="episode_airing_countdown">الحلقة %1$d خلال %2$s</string>
+    <string name="countdown_days">%1$d يوم</string>
+    <string name="countdown_hours">%1$d ساعة</string>
+    <string name="countdown_minutes">%1$d دقيقة</string>
+    <string name="countdown_seconds">%1$d ثانية</string>
+
+    <string name="sort_popularity">الشعبية</string>
+    <string name="sort_trending">الرائج</string>
+    <string name="sort_favourites">المفضلة</string>
+    <string name="sort_score">التقييم</string>
+    <string name="sort_episodes">عدد الحلقات</string>
+    <string name="sort_date_added">تاريخ الإضافة</string>
+
+    <string name="language_default">الافتراضي</string>
+    <string name="language_romaji">روماجي</string>
+    <string name="language_english">الإنجليزية</string>
+    <string name="language_native">日本語</string>
+
+    <string name="media_type_anime">أنمي</string>
+    <string name="media_type_manga">مانجا</string>
+    <string name="streaming_episode">حلقة المشاهدة</string>
+
+    <string name="episode_sources">الحلقات والمشاهدة</string>
+    <string name="select_server">اختر سيرفر المشاهدة</string>
+    <string name="no_episodes_found">لم يتم العثور على حلقات في هذا المصدر</string>
+    <string name="searching_source">جاري البحث في المصدر…</string>
+    <string name="open_in_browser">فتح في المتصفح</string>
+    <string name="episode_label">الحلقة %1$s</string>
+    <string name="loading_stream">جاري تجهيز البث…</string>
+    <string name="servers_count">%1$d سيرفرات</string>
+    <string name="source_not_available">المصدر غير متوفر مؤقتاً</string>
+
+    <string name="tab_overview">نظرة عامة</string>
+    <string name="tab_episodes">الحلقات</string>
+    <string name="tab_characters">الشخصيات</string>
+    <string name="tab_relations">أعمال مرتبطة</string>
+    <string name="add_to_library">أضف للمكتبة</string>
+    <string name="start_watching">ابدأ المشاهدة</string>
+    <string name="read_more">اقرأ المزيد</string>
+    <string name="show_less">عرض أقل</string>
+    <string name="watch_on">شاهد على %1$s</string>
+    <string name="no_episodes_yet">لا تتوفر حلقات بعد</string>
+    <string name="synopsis">القصة</string>
+    <string name="next_episode">الحلقة القادمة</string>
+    <string name="official_streaming_services">منصات البث الرسمية</string>
+    <string name="select_quality">اختر الجودة</string>
+    <string name="no_playable_quality">لا تتوفر جودة قابلة للتشغيل حاليًا</string>
+    <string name="playback_failed">تعذر تشغيل الفيديو</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="qualities_count">%1$d جودات</string>
+    <string name="player_settings">إعدادات المشغّل</string>
+    <string name="cache_settings">الذاكرة المؤقتة (Cache)</string>
+    <string name="current_cache_size">الحجم الحالي للذاكرة المؤقتة</string>
+    <string name="clear_cache">مسح ذاكرة المشغّل المؤقتة</string>
+    <string name="cache_cleared">تم مسح الذاكرة المؤقتة بنجاح</string>
+    <string name="cache_limit">الحد الأقصى للذاكرة</string>
+    <string name="playback_speed">سرعة التشغيل</string>
+    <string name="aspect_ratio">نسبة العرض</string>
+    <string name="aspect_fit">احتواء (Fit)</string>
+    <string name="aspect_fill">ملء الشاشة (Fill)</string>
+    <string name="aspect_zoom">تكبير (Zoom)</string>
+    <string name="subtitles">الترجمة</string>
+    <string name="subtitles_enabled">الترجمة مفعّلة</string>
+    <string name="subtitles_disabled">الترجمة معطّلة</string>
+    <string name="screen_locked">تم قفل الشاشة</string>
+    <string name="tap_to_unlock">اضغط لإلغاء القفل</string>
+    <string name="pip_mode">صورة داخل صورة</string>
+    <string name="sleep_timer">مؤقت النوم</string>
+    <string name="timer_off">إيقاف</string>
+    <string name="timer_15_min">15 دقيقة</string>
+    <string name="timer_30_min">30 دقيقة</string>
+    <string name="timer_45_min">45 دقيقة</string>
+    <string name="timer_60_min">60 دقيقة</string>
+    <string name="timer_end_of_episode">نهاية الحلقة</string>
+    <string name="audio_track">المسار الصوتي</string>
+    <string name="cast">بث الشاشة</string>
+    <string name="cast_no_devices">لم يتم العثور على أجهزة بث في الشبكة المحلية</string>
+    <string name="more_options">المزيد من الخيارات</string>
+    <string name="episodes_drawer">الحلقات</string>
+    <string name="download_action">تحميل</string>
+    <string name="download_not_supported">التحميل المباشر غير متوفر لهذا البث</string>
+</resources>
+

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Soft ambient neon glow disc centered behind emblem -->
+    <path
+        android:pathData="M54,54m-27,0a27,27 0,1,1 54,0a27,27 0,1,1 -54,0"
+        android:fillColor="#3D204E" />
+    <path
+        android:pathData="M54,54m-21,0a21,21 0,1,1 42,0a21,21 0,1,1 -42,0"
+        android:fillColor="#55225E" />
+
+    <!-- Left Pillar of 'A' (Neon Anime Coral) -->
+    <path
+        android:pathData="M31,79 L39,79 L49,52 L49,36 L54,27 L48,27 L31,79 Z"
+        android:fillColor="#FF2A6D" />
+
+    <!-- Top Ribbon Fold of 'A' (Radiant Magenta) -->
+    <path
+        android:pathData="M48,27 L54,27 L60,33 L54,39 L49,36 Z"
+        android:fillColor="#FF5A80" />
+
+    <!-- Right Pillar of 'A' (Electric Anime Violet/Indigo) -->
+    <path
+        android:pathData="M60,33 L77,79 L69,79 L57,53 L54,39 Z"
+        android:fillColor="#7928CA" />
+    <path
+        android:pathData="M57,53 L69,79 L63,79 L54,59 Z"
+        android:fillColor="#6366F1" />
+
+    <!-- Central Forward Play Triangle (▶) bridging A into media streaming -->
+    <path
+        android:pathData="M41,43 L65,54 L41,65 Z"
+        android:fillColor="#FF3366" />
+    <path
+        android:pathData="M42,45 L62,54 L42,63 Z"
+        android:fillColor="#FF5E7E" />
+
+    <!-- Inner Play triangle negative-space depth carve -->
+    <path
+        android:pathData="M45,48 L56,54 L45,60 Z"
+        android:fillColor="#0B0F1C" />
+
+    <!-- Anime Starlight Accent Glint -->
+    <path
+        android:pathData="M67,31 L68,34 L71,35 L68,36 L67,39 L66,36 L63,35 L66,34 Z"
+        android:fillColor="#FFD166" />
+</vector>

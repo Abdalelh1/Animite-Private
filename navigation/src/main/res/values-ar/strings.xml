@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="explore">استكشاف</string>
+    <string name="anime">أنمي</string>
+    <string name="manga">مانجا</string>
+    <string name="profile">حسابي</string>
+    <string name="social">المجتمع</string>
+    <string name="avatar">الصورة الرمزية</string>
+</resources>

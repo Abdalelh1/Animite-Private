@@ -1,0 +1,41 @@
+fragment CharacterSmall on Character {
+    id
+    image {
+        large
+    }
+    name {
+        userPreferred
+        full
+        alternative
+    }
+    description(asHtml: true)
+    gender
+    dateOfBirth {
+        year
+        month
+        day
+    }
+    age
+    favourites
+}
+
+fragment StaffSmall on Staff {
+    id
+    image {
+        large
+    }
+    name {
+        userPreferred
+        full
+        alternative
+    }
+    description(asHtml: true)
+    gender
+    dateOfBirth {
+        year
+        month
+        day
+    }
+    age
+    favourites
+}

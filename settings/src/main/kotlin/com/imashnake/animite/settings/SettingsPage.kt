@@ -1,0 +1,1526 @@
+package com.imashnake.animite.settings
+
+import android.app.Activity
+import android.content.Context
+import android.graphics.Bitmap
+import android.os.Build
+import android.widget.Toast
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.displayCutout
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.plus
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material3.ButtonGroupDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearWavyProgressIndicator
+import androidx.compose.material3.LocalMinimumInteractiveComponentSize
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Text
+import androidx.compose.material3.ToggleButton
+import androidx.compose.material3.ToggleButtonDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.vectorResource
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.util.fastForEach
+import androidx.compose.ui.util.fastForEachIndexed
+import androidx.compose.ui.util.fastRoundToInt
+import androidx.core.graphics.drawable.toBitmap
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import com.imashnake.animite.api.anilist.sanitize.media.Media
+import com.imashnake.animite.api.anilist.type.ScoreFormat
+import com.imashnake.animite.banner.BannerLayout
+import com.imashnake.animite.banner.MountFuji
+import com.imashnake.animite.core.ui.DayPart
+import com.imashnake.animite.core.ui.Density
+import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.core.ui.LocalTimeContext
+import com.imashnake.animite.core.ui.TimeContext
+import com.imashnake.animite.core.ui.component.ReorderableList
+import com.imashnake.animite.core.ui.ext.horizontalOnly
+import com.imashnake.animite.core.ui.layout.TranslucentStatusBarLayout
+import com.imashnake.animite.core.ui.rememberDefaultPaddings
+import com.imashnake.animite.media.ext.res
+import com.imashnake.animite.settings.ext.title
+import com.materialkolor.ktx.darken
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.collections.immutable.persistentListOf
+import kotlinx.serialization.Serializable
+
+private const val DISCORD_URL = "https://discord.gg/HEB7duYdqe"
+private const val GITHUB_URL = "https://github.com/imashnake0/Animite/"
+private const val PRIVACY_POLICY = "https://imashnake.imashnake0.deno.net/animite.html"
+private const val SYSTEM_DAY_PART = "SYSTEM"
+private const val APP_NAME = "Amimena"
+private const val BASED_ON_ANIMITE = "Based on Animite"
+
+// TODO: What a hodgepodge, do something.
+@OptIn(ExperimentalMaterial3ExpressiveApi::class, ExperimentalMaterial3Api::class)
+@Composable
+fun SettingsPage(
+    versionName: String,
+    modifier: Modifier = Modifier,
+    contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
+    timeContext: TimeContext = LocalTimeContext.current,
+    viewModel: SettingsViewModel = hiltViewModel(),
+) {
+    val insetPaddingValues = contentWindowInsets.asPaddingValues()
+    val horizontalInsets = insetPaddingValues.horizontalOnly
+
+    val scrollState = rememberScrollState()
+    val haptic = LocalHapticFeedback.current
+    val context = LocalContext.current
+
+    val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
+
+    val selectedTheme by viewModel.theme.collectAsState(initial = Theme.DEVICE_THEME.name)
+    val useSystemColorScheme by viewModel.useSystemColorScheme.collectAsState(initial = true)
+    val isAmoled by viewModel.isAmoled.collectAsState(initial = false)
+    val selectedDensity by viewModel.density.collectAsState(initial = Density.COMFY.name)
+
+    val isNsfwEnabled by viewModel.isNsfwEnabled.collectAsState(initial = false)
+    val selectedLanguage by viewModel.language.collectAsState(initial = Media.Language.DEFAULT.name)
+    val listSize by viewModel.listSize.collectAsState(initial = 10)
+
+    val animeLists by viewModel.animeList.collectAsState(initial = persistentListOf())
+    val animeListsIndices by viewModel.animeListsIndices.collectAsState(initial = byteArrayOf(1, 2, 3, 4, 5))
+    val mangaLists by viewModel.mangaList.collectAsState(initial = persistentListOf())
+    val mangaListsIndices by viewModel.mangaListsIndices.collectAsState(initial = byteArrayOf(1, 2, 3, 4, 5))
+
+    val showUserDescription by viewModel.showUserDescription.collectAsState(initial = true)
+    val useProfileColor by viewModel.useProfileColor.collectAsState(initial = true)
+    val useExpressiveProgressIndicator by viewModel.useExpressiveProgressIndicator.collectAsState(initial = true)
+    val profileColor by viewModel.profileColor.collectAsState(initial = "blue")
+    val scoreFormat by viewModel.scoreFormat.collectAsState(initial = ScoreFormat.POINT_10_DECIMAL.name)
+
+    val isDevOptionsEnabled by viewModel.isDevOptionsEnabled.collectAsState(initial = false)
+
+    val isDarkMode = selectedTheme == Theme.DARK.name ||
+            (selectedTheme == Theme.DEVICE_THEME.name && isSystemInDarkTheme())
+
+    var devOptionsCount by remember { mutableIntStateOf(0) }
+
+    TranslucentStatusBarLayout(scrollState) {
+        Box(modifier.verticalScroll(scrollState)) {
+            BannerLayout(
+                banner = { bannerModifier ->
+                    MountFuji(
+                        header = stringResource(R.string.settings),
+                        insetPaddingValues = insetPaddingValues,
+                        modifier = bannerModifier,
+                    )
+                },
+                content = {
+                    Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)) {
+                        Text(
+                            text = stringResource(R.string.appearance),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            style = MaterialTheme.typography.titleLarge,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        Items(
+                            items = persistentListOf(
+                                Item(
+                                    icon = R.drawable.theme,
+                                    label = R.string.theme,
+                                    orientation = Item.Orientation.VERTICAL
+                                ),
+                                Item(
+                                    icon = R.drawable.paint_brush,
+                                    label = R.string.palette,
+                                    orientation = Item.Orientation.HORIZONTAL
+                                ),
+                                Item(
+                                    icon = R.drawable.amoled,
+                                    label = R.string.amoled,
+                                    orientation = Item.Orientation.HORIZONTAL
+                                ),
+                                Item(
+                                    icon = R.drawable.density,
+                                    label = R.string.density,
+                                    orientation = Item.Orientation.VERTICAL
+                                ),
+                                Item(
+                                    icon = R.drawable.title_language,
+                                    label = R.string.language,
+                                    orientation = Item.Orientation.VERTICAL
+                                )
+                            ),
+                            onItemClick = { index ->
+                                when (index) {
+                                    1 -> {
+                                        viewModel.setUseSystemColorScheme(!useSystemColorScheme)
+                                        haptic.performHapticFeedback(
+                                            hapticFeedbackType = if (useSystemColorScheme) {
+                                                HapticFeedbackType.ToggleOff
+                                            } else HapticFeedbackType.ToggleOn
+                                        )
+                                    }
+
+                                    2 -> {
+                                        viewModel.setIsAmoled(!isAmoled)
+                                        haptic.performHapticFeedback(
+                                            hapticFeedbackType = if (isAmoled) {
+                                                HapticFeedbackType.ToggleOff
+                                            } else HapticFeedbackType.ToggleOn
+                                        )
+                                    }
+
+                                    else -> {}
+                                }
+                            },
+                            onItemLongClick = {},
+                            isDarkMode = isDarkMode,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { index ->
+                            when (index) {
+                                0 -> Row(
+                                    horizontalArrangement = Arrangement.spacedBy(
+                                        ButtonGroupDefaults.ConnectedSpaceBetween
+                                    )
+                                ) {
+                                    Theme.entries.fastForEach { theme ->
+                                        ToggleButton(
+                                            checked = selectedTheme == theme.name,
+                                            onCheckedChange = {
+                                                viewModel.setTheme(theme)
+                                                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            },
+                                            shapes = when (theme) {
+                                                Theme.DARK -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                                Theme.DEVICE_THEME -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                            },
+                                            colors = ToggleButtonDefaults.toggleButtonColors(
+                                                containerColor = MaterialTheme.colorScheme.background
+                                            ),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text(stringResource(theme.theme))
+                                        }
+                                    }
+                                }
+
+                                1 -> {
+                                    Switch(
+                                        checked = useSystemColorScheme,
+                                        onCheckedChange = {
+                                            viewModel.setUseSystemColorScheme(it)
+                                            haptic.performHapticFeedback(
+                                                hapticFeedbackType = if (!it) {
+                                                    HapticFeedbackType.ToggleOff
+                                                } else HapticFeedbackType.ToggleOn
+                                            )
+                                        },
+                                        thumbContent = {
+                                            if (useSystemColorScheme) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        },
+                                    )
+                                }
+
+                                2 -> {
+                                    Switch(
+                                        checked = isAmoled,
+                                        onCheckedChange = {
+                                            viewModel.setIsAmoled(it)
+                                            haptic.performHapticFeedback(
+                                                hapticFeedbackType = if (!it) {
+                                                    HapticFeedbackType.ToggleOff
+                                                } else HapticFeedbackType.ToggleOn
+                                            )
+                                        },
+                                        thumbContent = {
+                                            if (isAmoled) {
+                                                Icon(
+                                                    imageVector = Icons.Rounded.Check,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        },
+                                    )
+                                }
+
+                                3 -> {
+                                    Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                        Box(modifier = Modifier.fillMaxWidth()) {
+                                            Density.entries.fastForEach {
+                                                Text(
+                                                    text = it.label(),
+                                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                                    fontSize = 10.sp,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    modifier = Modifier.align(
+                                                        when (it) {
+                                                            Density.COMFY -> Alignment.CenterStart
+                                                            Density.COZY -> Alignment.Center
+                                                            Density.COMPACT -> Alignment.CenterEnd
+                                                        }
+                                                    )
+                                                )
+                                            }
+                                        }
+
+                                        val interactionSource = remember {
+                                            MutableInteractionSource()
+                                        }
+                                        val colors = SliderDefaults.colors(
+                                            activeTrackColor = SliderDefaults.colors().inactiveTrackColor,
+                                            activeTickColor = SliderDefaults.colors().inactiveTickColor,
+                                        )
+                                        Slider(
+                                            value = when (Density.valueOf(selectedDensity)) {
+                                                Density.COMFY -> 0f
+                                                Density.COZY -> 1f
+                                                Density.COMPACT -> 2f
+                                            },
+                                            onValueChange = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                                viewModel.setDensity(Density.entries[it.fastRoundToInt()])
+                                            },
+                                            colors = colors,
+                                            steps = 1,
+                                            valueRange = 0f..2f,
+                                            thumb = {
+                                                SliderDefaults.Thumb(
+                                                    interactionSource = interactionSource,
+                                                    colors = colors,
+                                                    enabled = true,
+                                                    modifier = Modifier.height(20.dp)
+                                                )
+                                            }
+                                        )
+                                    }
+                                }
+
+                                4 -> {
+                                    val currentLanguage: String = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                        val locales = context.getSystemService(android.app.LocaleManager::class.java).applicationLocales
+                                        if (!locales.isEmpty) locales[0]?.language ?: java.util.Locale.getDefault().language
+                                        else java.util.Locale.getDefault().language
+                                    } else {
+                                        val prefs = context.getSharedPreferences("app_locale", Context.MODE_PRIVATE)
+                                        prefs.getString("language", null) ?: java.util.Locale.getDefault().language
+                                    }
+
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(
+                                            ButtonGroupDefaults.ConnectedSpaceBetween
+                                        )
+                                    ) {
+                                        val languages = listOf("en" to R.string.language_en, "ar" to R.string.language_ar)
+                                        languages.fastForEachIndexed { langIndex, (code, labelRes) ->
+                                            ToggleButton(
+                                                checked = currentLanguage.startsWith(code),
+                                                onCheckedChange = {
+                                                    if (!currentLanguage.startsWith(code)) {
+                                                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                                                            context.getSystemService(android.app.LocaleManager::class.java).applicationLocales =
+                                                                android.os.LocaleList.forLanguageTags(code)
+                                                        } else {
+                                                            context.getSharedPreferences("app_locale", Context.MODE_PRIVATE)
+                                                                .edit()
+                                                                .putString("language", code)
+                                                                .apply()
+                                                        }
+                                                        (context as? Activity)?.recreate()
+                                                    }
+                                                },
+                                                shapes = when (langIndex) {
+                                                    0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                                    else -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                                },
+                                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                                    containerColor = MaterialTheme.colorScheme.background
+                                                ),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(stringResource(labelRes))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                else -> {}
+                            }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)) {
+                        Text(
+                            text = stringResource(R.string.preferences),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            style = MaterialTheme.typography.titleLarge,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        Items(
+                            items = persistentListOf(
+                                Item(
+                                    icon = R.drawable.nsfw,
+                                    label = R.string.nsfw,
+                                    orientation = Item.Orientation.HORIZONTAL
+                                ),
+                                Item(
+                                    icon = R.drawable.title_language,
+                                    label = R.string.title_language,
+                                    orientation = Item.Orientation.VERTICAL
+                                ),
+                                Item(
+                                    icon = R.drawable.list_size,
+                                    label = R.string.list_size,
+                                    orientation = Item.Orientation.VERTICAL
+                                ),
+                                Item(
+                                    icon = R.drawable.list_order,
+                                    label = R.string.anime_lists,
+                                    orientation = Item.Orientation.VERTICAL
+                                ),
+                                Item(
+                                    icon = R.drawable.list_order_alt,
+                                    label = R.string.manga_lists,
+                                    orientation = Item.Orientation.VERTICAL
+                                )
+                            ),
+                            onItemClick = { index ->
+                                when (index) {
+                                    0 -> {
+                                        viewModel.setIsNsfwEnabled(!isNsfwEnabled)
+                                        haptic.performHapticFeedback(
+                                            hapticFeedbackType = if (isNsfwEnabled) {
+                                                HapticFeedbackType.ToggleOff
+                                            } else HapticFeedbackType.ToggleOn
+                                        )
+                                    }
+                                }
+                            },
+                            onItemLongClick = { index ->
+                                when (index) {
+                                    2 -> {
+                                        viewModel.setListSize(10)
+                                        haptic.performHapticFeedback(
+                                            HapticFeedbackType.LongPress
+                                        )
+                                    }
+                                    3 -> {
+                                        viewModel.resetAnimeLists()
+                                        haptic.performHapticFeedback(
+                                            HapticFeedbackType.LongPress
+                                        )
+                                    }
+                                    4 -> {
+                                        viewModel.resetMangaLists()
+                                        haptic.performHapticFeedback(
+                                            HapticFeedbackType.LongPress
+                                        )
+                                    }
+                                }
+                            },
+                            isDarkMode = isDarkMode,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { index ->
+                            when (index) {
+                                0 -> {
+                                    Switch(
+                                        checked = isNsfwEnabled,
+                                        onCheckedChange = {
+                                            viewModel.setIsNsfwEnabled(it)
+                                            haptic.performHapticFeedback(
+                                                hapticFeedbackType = if (!it) {
+                                                    HapticFeedbackType.ToggleOff
+                                                } else HapticFeedbackType.ToggleOn
+                                            )
+                                        },
+                                        thumbContent = {
+                                            if (isNsfwEnabled) {
+                                                Icon(
+                                                    imageVector = ImageVector.vectorResource(R.drawable.eye),
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                                    tint = MaterialTheme.colorScheme.primary
+                                                )
+                                            }
+                                        },
+                                    )
+                                }
+
+                                1 -> {
+                                    Row(
+                                        horizontalArrangement = Arrangement.spacedBy(
+                                            ButtonGroupDefaults.ConnectedSpaceBetween
+                                        )
+                                    ) {
+                                        Media.Language.entries.fastForEach { language ->
+                                            ToggleButton(
+                                                checked = selectedLanguage == language.name,
+                                                onCheckedChange = {
+                                                    viewModel.setLanguage(language)
+                                                    haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                                },
+                                                shapes = when (language) {
+                                                    Media.Language.ROMAJI -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                                    Media.Language.DEFAULT -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                                    else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                                },
+                                                colors = ToggleButtonDefaults.toggleButtonColors(
+                                                    containerColor = MaterialTheme.colorScheme.background
+                                                ),
+                                                modifier = Modifier.weight(1f)
+                                            ) {
+                                                Text(stringResource(language.res))
+                                            }
+                                        }
+                                    }
+                                }
+
+                                2 -> {
+                                    Slider(
+                                        value = listSize.toFloat(),
+                                        onValueChange = {
+                                            haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                            viewModel.setListSize(it.fastRoundToInt())
+                                        },
+                                        colors = SliderDefaults.colors(
+                                            activeTickColor = SliderDefaults.colors().activeTrackColor,
+                                            inactiveTickColor = SliderDefaults.colors().inactiveTrackColor
+                                        ),
+                                        steps = 46,
+                                        valueRange = 5f..50f,
+                                        thumb = {
+                                            AnimatedContent(
+                                                targetState = listSize,
+                                                transitionSpec = {
+                                                    scaleIn(initialScale = 0.92f, animationSpec = tween(220, delayMillis = 90))
+                                                        .togetherWith(fadeOut(animationSpec = tween(90)))
+                                                },
+                                            ) {
+                                                Text(
+                                                    text = it.toString(),
+                                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                                    fontSize = 12.sp,
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                )
+                                            }
+                                        }
+                                    )
+                                }
+
+                                3 -> {
+                                    ReorderableList(
+                                        list = animeLists,
+                                        isItemChecked = { animeListsIndices[it] > 0 },
+                                        checkItem = viewModel::toggleAnimeList,
+                                        onSettle = viewModel::setAnimeListsIndices,
+                                        transformItemText = { it.res }
+                                    )
+                                }
+
+                                4 -> {
+                                    ReorderableList(
+                                        list = mangaLists,
+                                        isItemChecked = { mangaListsIndices[it] > 0 },
+                                        checkItem = viewModel::toggleMangaList,
+                                        onSettle = viewModel::setMangaListsIndices,
+                                        transformItemText = { it.res }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    if (isLoggedIn) {
+                        Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)) {
+                            Text(
+                                text = stringResource(R.string.profile_settings),
+                                color = MaterialTheme.colorScheme.onBackground,
+                                style = MaterialTheme.typography.titleLarge,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+
+                            Items(
+                                items = persistentListOf(
+                                    Item(
+                                        icon = R.drawable.user_description,
+                                        label = R.string.show_description,
+                                        orientation = Item.Orientation.HORIZONTAL
+                                    ),
+                                    Item(
+                                        icon = R.drawable.palette,
+                                        label = R.string.profile_color,
+                                        orientation = Item.Orientation.HORIZONTAL
+                                    ),
+                                    Item(
+                                        icon = R.drawable.animation,
+                                        label = R.string.use_expressive_progress_indicator,
+                                        orientation = Item.Orientation.HORIZONTAL
+                                    ),
+                                    Item(
+                                        icon = R.drawable.review,
+                                        label = R.string.score_format,
+                                        orientation = Item.Orientation.VERTICAL
+                                    ),
+                                ),
+                                onItemClick = { index ->
+                                    when (index) {
+                                        0 -> {
+                                            viewModel.setShowUserDescription(!showUserDescription)
+                                            haptic.performHapticFeedback(
+                                                hapticFeedbackType = if (showUserDescription) {
+                                                    HapticFeedbackType.ToggleOff
+                                                } else HapticFeedbackType.ToggleOn
+                                            )
+                                        }
+
+                                        2 -> {
+                                            viewModel.setUseExpressiveProgressIndicator(!useExpressiveProgressIndicator)
+                                            haptic.performHapticFeedback(
+                                                hapticFeedbackType = if (useExpressiveProgressIndicator) {
+                                                    HapticFeedbackType.ToggleOff
+                                                } else HapticFeedbackType.ToggleOn
+                                            )
+                                        }
+                                    }
+                                },
+                                onItemLongClick = {},
+                                itemSubContent = {
+                                    when (it) {
+                                        1 -> {
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(
+                                                    ButtonGroupDefaults.ConnectedSpaceBetween
+                                                ),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                ProfileColor.entries.fastForEachIndexed { index, entry ->
+                                                    ToggleButton(
+                                                        checked = profileColor.equals(
+                                                            entry.name,
+                                                            ignoreCase = true
+                                                        ) && useProfileColor,
+                                                        onCheckedChange = {
+                                                            viewModel.updateProfileColor(entry.name.lowercase())
+                                                            haptic.performHapticFeedback(
+                                                                HapticFeedbackType.SegmentTick
+                                                            )
+                                                        },
+                                                        shapes = when (index) {
+                                                            0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                                            ProfileColor.entries.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                                            else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                                        },
+                                                        enabled = useProfileColor,
+                                                        colors = ToggleButtonDefaults.toggleButtonColors(
+                                                            containerColor = entry.color,
+                                                            contentColor = entry.color.darken(4f),
+                                                            checkedContainerColor = entry.color,
+                                                            checkedContentColor = entry.color.darken(
+                                                                4f
+                                                            ),
+                                                        ),
+                                                        modifier = Modifier.weight(1f)
+                                                    ) {
+                                                        if (profileColor.equals(
+                                                                entry.name,
+                                                                ignoreCase = true
+                                                            ) && useProfileColor
+                                                        ) {
+                                                            entry.label?.let { id ->
+                                                                Text(
+                                                                    text = stringResource(id),
+                                                                    fontSize = 7.sp,
+                                                                    maxLines = 1
+                                                                )
+                                                            } ?: Icon(
+                                                                imageVector = Icons.Rounded.Check,
+                                                                contentDescription = null,
+                                                                modifier = Modifier.size(
+                                                                    SwitchDefaults.IconSize
+                                                                ),
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+
+                                        2 -> {
+                                            val amplitude by animateFloatAsState(
+                                                if (useExpressiveProgressIndicator) 0.5f else 0f
+                                            )
+                                            val progress = 67
+
+                                            Row(
+                                                horizontalArrangement = Arrangement.spacedBy(
+                                                    LocalPaddings.current.small
+                                                ),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Text(
+                                                    text = "$progress/100",
+                                                    color = MaterialTheme.colorScheme.primary.copy(
+                                                        alpha = 0.7f
+                                                    ),
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                key(amplitude) {
+                                                    LinearWavyProgressIndicator(
+                                                        progress = { progress.toFloat() / 100 },
+                                                        amplitude = { amplitude },
+                                                        waveSpeed = 15.dp,
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .graphicsLayer { alpha = 0.6f }
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                },
+                                isDarkMode = isDarkMode,
+                            ) { index ->
+                                when (index) {
+                                    0 -> {
+                                        Switch(
+                                            checked = showUserDescription,
+                                            onCheckedChange = {
+                                                viewModel.setShowUserDescription(it)
+                                                haptic.performHapticFeedback(
+                                                    hapticFeedbackType = if (!it) {
+                                                        HapticFeedbackType.ToggleOff
+                                                    } else HapticFeedbackType.ToggleOn
+                                                )
+                                            },
+                                            thumbContent = {
+                                                if (showUserDescription) {
+                                                    Icon(
+                                                        imageVector = ImageVector.vectorResource(R.drawable.eye),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(SwitchDefaults.IconSize),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    }
+
+                                    1 -> {
+                                        Switch(
+                                            checked = useProfileColor,
+                                            onCheckedChange = {
+                                                viewModel.setUseProfileColor(it)
+                                                haptic.performHapticFeedback(
+                                                    hapticFeedbackType = if (!it) {
+                                                        HapticFeedbackType.ToggleOff
+                                                    } else HapticFeedbackType.ToggleOn
+                                                )
+                                            },
+                                            thumbContent = {
+                                                if (useProfileColor) {
+                                                    Icon(
+                                                        imageVector = ImageVector.vectorResource(R.drawable.fill_bucket),
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(SwitchDefaults.IconSize),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    }
+
+                                    2 -> {
+                                        Switch(
+                                            checked = useExpressiveProgressIndicator,
+                                            onCheckedChange = {
+                                                viewModel.setUseExpressiveProgressIndicator(!useExpressiveProgressIndicator)
+                                                haptic.performHapticFeedback(
+                                                    hapticFeedbackType = if (useExpressiveProgressIndicator) {
+                                                        HapticFeedbackType.ToggleOff
+                                                    } else HapticFeedbackType.ToggleOn
+                                                )
+                                            },
+                                            thumbContent = {
+                                                if (useExpressiveProgressIndicator) {
+                                                    Icon(
+                                                        imageVector = Icons.Rounded.Check,
+                                                        contentDescription = null,
+                                                        modifier = Modifier.size(SwitchDefaults.IconSize),
+                                                        tint = MaterialTheme.colorScheme.primary
+                                                    )
+                                                }
+                                            },
+                                        )
+                                    }
+
+                                    3 -> {
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(
+                                                ButtonGroupDefaults.ConnectedSpaceBetween
+                                            )
+                                        ) {
+                                            // TODO: Maybe sanitize.
+                                            ScoreFormat.entries.minus(ScoreFormat.UNKNOWN__).fastForEach { format ->
+                                                ToggleButton(
+                                                    checked = scoreFormat == format.name,
+                                                    onCheckedChange = {
+                                                        viewModel.updateScoreFormat(format)
+                                                        haptic.performHapticFeedback(HapticFeedbackType.SegmentTick)
+                                                    },
+                                                    shapes = when (format) {
+                                                        ScoreFormat.POINT_100 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                                        ScoreFormat.POINT_3 -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                                        else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                                                    },
+                                                    colors = ToggleButtonDefaults.toggleButtonColors(
+                                                        containerColor = MaterialTheme.colorScheme.background
+                                                    ),
+                                                    modifier = Modifier.weight(1f)
+                                                ) {
+                                                    Row(
+                                                        verticalAlignment = Alignment.CenterVertically,
+                                                        horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+                                                    ) {
+                                                        Text(format.title, maxLines = 1)
+                                                        when(format) {
+                                                            ScoreFormat.POINT_5 -> {
+                                                                Icon(
+                                                                    imageVector = ImageVector.vectorResource(R.drawable.star),
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(16.dp).padding(bottom = 1.dp),
+                                                                )
+                                                            }
+                                                            ScoreFormat.POINT_3 -> {
+                                                                Icon(
+                                                                    imageVector = ImageVector.vectorResource(R.drawable.smile),
+                                                                    contentDescription = null,
+                                                                    modifier = Modifier.size(16.dp).padding(bottom = 1.dp),
+                                                                )
+                                                            }
+                                                            else -> {}
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)) {
+                        Text(
+                            text = stringResource(R.string.about),
+                            color = MaterialTheme.colorScheme.onBackground,
+                            style = MaterialTheme.typography.titleLarge,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+
+                        Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny)) {
+                            AboutItem(
+                                isDarkMode = isDarkMode,
+                                versionName = versionName,
+                                isDevOptionsEnabled = isDevOptionsEnabled,
+                                devOptionsCount = devOptionsCount,
+                                onClick = { devOptionsCount++ },
+                                enableDevOptions = { viewModel.setDevOptions(true) },
+                                disableDevOptions = {
+                                    devOptionsCount = 0; viewModel.setDevOptions(false)
+                                }
+                            )
+
+                            PrivacyPolicyItem(isDarkMode = isDarkMode)
+                        }
+                    }
+
+                    AnimatedVisibility(
+                        enter = fadeIn(),
+                        exit = fadeOut(),
+                        visible = isDevOptionsEnabled
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)) {
+                            Text(
+                                text = stringResource(R.string.dev_options),
+                                color = MaterialTheme.colorScheme.onBackground,
+                                style = MaterialTheme.typography.titleLarge,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+
+                            Items(
+                                items = persistentListOf(
+                                    Item(
+                                        icon = R.drawable.day_hour,
+                                        label = R.string.day_hour,
+                                        orientation = Item.Orientation.VERTICAL
+                                    ),
+                                    Item(
+                                        icon = R.drawable.day_part,
+                                        label = R.string.day_part,
+                                        orientation = Item.Orientation.VERTICAL
+                                    ),
+                                ),
+                                onItemClick = {},
+                                onItemLongClick = {},
+                                isDarkMode = isDarkMode,
+                            ) { index ->
+                                when (index) {
+                                    0 -> {
+                                        Slider(
+                                            value = timeContext.dayProgress,
+                                            onValueChange = {
+                                                haptic.performHapticFeedback(HapticFeedbackType.SegmentFrequentTick)
+                                                viewModel.setDayHour(it * 23f)
+                                            },
+                                            valueRange = 0f..1f,
+                                        )
+                                    }
+                                    1 -> {
+                                        Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.small)) {
+                                            DayPart.entries.map { it.name }.plus(SYSTEM_DAY_PART).fastForEach {
+                                                Row(
+                                                    horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.small),
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .padding(start = LocalPaddings.current.large)
+                                                        .clip(CircleShape)
+                                                        .clickable {
+                                                            if (it != SYSTEM_DAY_PART) {
+                                                                viewModel.setDayHour(
+                                                                    when (DayPart.valueOf(it)) {
+                                                                        DayPart.MORNING -> 6f
+                                                                        DayPart.AFTERNOON -> 12f
+                                                                        DayPart.EVENING -> 18f
+                                                                        DayPart.NIGHT -> 21f
+                                                                    }
+                                                                )
+                                                            } else viewModel.setDayHour(null)
+                                                        }
+                                                        .padding(
+                                                            top = LocalPaddings.current.tiny,
+                                                            bottom = LocalPaddings.current.tiny,
+                                                            start = LocalPaddings.current.tiny,
+                                                            end = LocalPaddings.current.medium
+                                                        )
+                                                ) {
+                                                    RadioButton(
+                                                        selected = it == timeContext.dayPart.name,
+                                                        onClick = null,
+                                                    )
+                                                    Text(
+                                                        text = it,
+                                                        style = MaterialTheme.typography.labelSmallEmphasized,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                contentPadding = PaddingValues(
+                    top = LocalPaddings.current.large,
+                    bottom = LocalPaddings.current.large + insetPaddingValues.calculateBottomPadding(),
+                    start = LocalPaddings.current.large,
+                    end = LocalPaddings.current.large,
+                ) + horizontalInsets
+            )
+        }
+    }
+}
+
+@Composable
+private fun Items(
+    items: ImmutableList<Item>,
+    isDarkMode: Boolean,
+    modifier: Modifier = Modifier,
+    onItemClick: (Int) -> Unit,
+    onItemLongClick: (Int) -> Unit,
+    itemCustomIcon: @Composable (() -> Unit)? = null,
+    itemSubContent: @Composable ((Int) -> Unit)? = null,
+    itemContent: @Composable (Int) -> Unit
+) {
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny),
+            modifier = modifier
+        ) {
+            items.fastForEachIndexed { index, item ->
+                val top = when (index) {
+                    0 -> LocalPaddings.current.large
+                    else -> LocalPaddings.current.tiny
+                }
+                val bottom = when (index) {
+                    items.lastIndex -> LocalPaddings.current.large
+                    else -> LocalPaddings.current.tiny
+                }
+
+                when (item.orientation) {
+                    Item.Orientation.HORIZONTAL -> HorizontalItem(
+                        item = index to item,
+                        customIcon = itemCustomIcon,
+                        shape = if (items.size == 1) {
+                            CircleShape
+                        } else {
+                            RoundedCornerShape(
+                                topStart = top,
+                                topEnd = top,
+                                bottomEnd = bottom,
+                                bottomStart = bottom,
+                            )
+                        },
+                        onItemClick = { onItemClick(index) },
+                        onItemLongClick = { onItemLongClick(index) },
+                        background = if (isDarkMode) {
+                            MaterialTheme.colorScheme.surfaceContainer
+                        } else MaterialTheme.colorScheme.surface,
+                        subContent = { itemSubContent?.invoke(index) }
+                    ) {
+                        itemContent(index)
+                    }
+                    Item.Orientation.VERTICAL -> VerticalItem(
+                        item = index to item,
+                        customIcon = itemCustomIcon,
+                        shape = RoundedCornerShape(
+                            topStart = top,
+                            topEnd = top,
+                            bottomEnd = bottom,
+                            bottomStart = bottom,
+                        ),
+                        onItemClick = { onItemClick(index) },
+                        onItemLongClick = { onItemLongClick(index) },
+                        background = if (isDarkMode) {
+                            MaterialTheme.colorScheme.surfaceContainer
+                        } else MaterialTheme.colorScheme.surface
+                    ) {
+                        itemContent(index)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(
+    ExperimentalMaterial3ExpressiveApi::class,
+    ExperimentalMaterial3Api::class
+)
+@Composable
+private fun HorizontalItem(
+    item: Pair<Int, Item>,
+    shape: Shape,
+    background: Color,
+    onItemClick: () -> Unit,
+    onItemLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    customIcon: @Composable (() -> Unit)? = null,
+    subContent: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalPaddings provides rememberDefaultPaddings(),
+        // Remove default M3 padding
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .combinedClickable(
+                    onClick = onItemClick,
+                    onLongClick = onItemLongClick,
+                )
+                .background(background)
+                .padding(LocalPaddings.current.medium)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (customIcon != null) {
+                    customIcon()
+                } else {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(item.second.icon),
+                        contentDescription = null,
+                    )
+                }
+                Text(
+                    text = stringResource(item.second.label),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+                content()
+            }
+            subContent?.invoke()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun VerticalItem(
+    item: Pair<Int, Item>,
+    shape: Shape,
+    background: Color,
+    onItemClick: () -> Unit,
+    onItemLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    customIcon: @Composable (() -> Unit)? = null,
+    content: @Composable () -> Unit,
+) {
+    CompositionLocalProvider(
+        LocalPaddings provides rememberDefaultPaddings(),
+        // Remove default M3 padding
+        LocalMinimumInteractiveComponentSize provides 0.dp,
+    ) {
+        Column(
+            verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(shape)
+                .combinedClickable(
+                    onClick = onItemClick,
+                    onLongClick = onItemLongClick,
+                )
+                .background(background)
+                .padding(LocalPaddings.current.medium)
+        ) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                if (customIcon != null) {
+                    customIcon()
+                } else {
+                    Icon(
+                        imageVector = ImageVector.vectorResource(item.second.icon),
+                        contentDescription = null,
+                    )
+                }
+                Text(
+                    text = stringResource(item.second.label),
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+                    style = MaterialTheme.typography.titleSmall,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+            content()
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun AboutItem(
+    isDarkMode: Boolean,
+    versionName: String,
+    isDevOptionsEnabled: Boolean,
+    devOptionsCount: Int,
+    onClick: () -> Unit,
+    enableDevOptions: () -> Unit,
+    disableDevOptions: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val background by animateColorAsState(
+        targetValue = if (isDarkMode) Color(0x190FFF66) else Color(0x59FFC0CB),
+        animationSpec = tween(500)
+    )
+    val textColor by animateColorAsState(
+        targetValue = if (isDarkMode) Color(0xFF3BFF84) else Color(0xFFDA6482),
+        animationSpec = tween(500)
+    )
+    val uriHandler = LocalUriHandler.current
+    val context = LocalContext.current
+    val stepsFromDeveloper = pluralStringResource(
+        id = R.plurals.almost_developer,
+        count = 10 - devOptionsCount,
+        10 - devOptionsCount
+    )
+    var toast: Toast? by remember { mutableStateOf(null) }
+
+    val haptic = LocalHapticFeedback.current
+
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(
+                    RoundedCornerShape(
+                        topStart = LocalPaddings.current.large,
+                        topEnd = LocalPaddings.current.large,
+                        bottomStart = LocalPaddings.current.small,
+                        bottomEnd = LocalPaddings.current.small
+                    )
+                )
+                .combinedClickable(
+                    onClick = {
+                        haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                        if (toast != null) {
+                            toast?.cancel()
+                        }
+                        if (isDevOptionsEnabled) {
+                            toast = Toast.makeText(context, R.string.already_developer, Toast.LENGTH_SHORT)
+                            toast?.show()
+                            return@combinedClickable
+                        }
+                        if (devOptionsCount < 10) {
+                            onClick()
+                            toast = Toast.makeText(
+                                context,
+                                stepsFromDeveloper,
+                                Toast.LENGTH_SHORT
+                            )
+                        } else if (devOptionsCount == 10) {
+                            enableDevOptions()
+                            onClick()
+                            toast = Toast.makeText(context, R.string.now_developer, Toast.LENGTH_SHORT)
+                        }
+                        toast?.show()
+                    },
+                    onLongClick = {
+                        if (isDevOptionsEnabled) {
+                            if (toast != null) {
+                                toast?.cancel()
+                            }
+                            disableDevOptions()
+                            toast = Toast.makeText(context, R.string.disabled_dev_options, Toast.LENGTH_SHORT)
+                            toast?.show()
+                        }
+                    }
+                )
+                .background(background)
+                .padding(LocalPaddings.current.medium)
+                .height(IntrinsicSize.Min)
+        ) {
+            if (LocalInspectionMode.current) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(Color(0x4F0A1625))
+                )
+            } else {
+                val drawable = LocalContext.current.packageManager
+                    .getApplicationIcon(LocalContext.current.packageName)
+                Image(
+                    bitmap = drawable
+                        .toBitmap(config = Bitmap.Config.ARGB_8888)
+                        .asImageBitmap(),
+                    contentDescription = stringResource(R.string.app_icon),
+                    modifier = Modifier.size(40.dp)
+                )
+            }
+
+            Column(
+                verticalArrangement = Arrangement.SpaceEvenly,
+                modifier = Modifier.fillMaxHeight().weight(1f)
+            ) {
+                Text(
+                    text = APP_NAME,
+                    color = textColor,
+                    style = MaterialTheme.typography.titleSmallEmphasized,
+                )
+                Text(
+                    text = "v$versionName • ${stringResource(R.string.based_on_animite)}",
+                    color = textColor.copy(alpha = 0.75f),
+                    style = MaterialTheme.typography.labelSmallEmphasized,
+                )
+            }
+
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable { uriHandler.openUri(DISCORD_URL) }
+                        .background(Color(0xFF5865f2))
+                        .size(28.dp)
+                ) {
+                    Image(
+                        imageVector = ImageVector.vectorResource(R.drawable.discord),
+                        contentDescription = stringResource(R.string.discord),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
+
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .clickable { uriHandler.openUri(GITHUB_URL) }
+                        .background(Color.White)
+                        .size(28.dp)
+                ) {
+                    Image(
+                        imageVector = ImageVector.vectorResource(R.drawable.github),
+                        contentDescription = stringResource(R.string.github),
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun PrivacyPolicyItem(
+    isDarkMode: Boolean,
+    modifier: Modifier = Modifier,
+) {
+    val background by animateColorAsState(
+        targetValue = if (isDarkMode) Color(0x190FFF66) else Color(0x59FFC0CB),
+        animationSpec = tween(500)
+    )
+    val uriHandler = LocalUriHandler.current
+
+    CompositionLocalProvider(LocalPaddings provides rememberDefaultPaddings()) {
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium),
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = modifier
+                .fillMaxWidth()
+                .clip(
+                    RoundedCornerShape(
+                        topStart = LocalPaddings.current.small,
+                        topEnd = LocalPaddings.current.small,
+                        bottomStart = LocalPaddings.current.large,
+                        bottomEnd = LocalPaddings.current.large
+                    )
+                )
+                .clickable {}
+                .background(background)
+                .padding(LocalPaddings.current.medium)
+                .height(IntrinsicSize.Min)
+        ) {
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.privacy_policy),
+                contentDescription = stringResource(R.string.privacy_policy),
+                modifier = Modifier.size(28.dp)
+            )
+            Text(
+                text = stringResource(R.string.privacy_policy),
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.9f),
+                style = MaterialTheme.typography.titleSmall,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = ImageVector.vectorResource(R.drawable.open_link),
+                contentDescription = stringResource(R.string.privacy_policy),
+                modifier = Modifier
+                    .clip(CircleShape)
+                    .clickable { uriHandler.openUri(PRIVACY_POLICY) }
+                    .padding(LocalPaddings.current.small)
+                    .size(20.dp)
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Preview(
+    showBackground = true,
+    backgroundColor = 0xFFE0E4ED
+)
+@Composable
+private fun PreviewItems() {
+    var selectedTheme by remember { mutableStateOf(Theme.DARK) }
+    var useColorScheme by remember { mutableStateOf(true) }
+
+    val padding = 10.dp
+
+    Column(
+        verticalArrangement = Arrangement.spacedBy(padding),
+        modifier = Modifier.padding(vertical = padding)
+    ) {
+        Items(
+            items = persistentListOf(
+                Item(
+                    icon = R.drawable.theme,
+                    label = R.string.theme,
+                    orientation = Item.Orientation.VERTICAL
+                ),
+                Item(
+                    icon = R.drawable.palette,
+                    label = R.string.palette,
+                    orientation = Item.Orientation.HORIZONTAL
+                )
+            ),
+            onItemClick = {},
+            onItemLongClick = {},
+            isDarkMode = false,
+            modifier = Modifier.fillMaxWidth().padding(horizontal = padding)
+        ) { index ->
+            when (index) {
+                0 -> Row(
+                    horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween),
+                ) {
+                    Theme.entries.fastForEach { theme ->
+                        ToggleButton(
+                            checked = selectedTheme == theme,
+                            onCheckedChange = { selectedTheme = theme },
+                            shapes = when (theme) {
+                                Theme.DARK -> ButtonGroupDefaults.connectedLeadingButtonShapes()
+                                Theme.DEVICE_THEME -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
+                            },
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(stringResource(theme.theme))
+                        }
+                    }
+                }
+
+                1 -> {
+                    Switch(
+                        checked = useColorScheme,
+                        onCheckedChange = { useColorScheme = it },
+                        thumbContent = {
+                            if (useColorScheme) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Check,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(SwitchDefaults.IconSize),
+                                )
+                            }
+                        },
+                    )
+                }
+
+                else -> {}
+            }
+        }
+
+        AboutItem(
+            isDarkMode = false,
+            versionName = "0.0.0-alpha0",
+            isDevOptionsEnabled = false,
+            devOptionsCount = 0,
+            onClick = {},
+            enableDevOptions = {},
+            disableDevOptions = {},
+            modifier = Modifier.padding(horizontal = 10.dp)
+        )
+    }
+}
+
+private data class Item(
+    @param:DrawableRes val icon: Int,
+    @param:StringRes val label: Int,
+    val orientation: Orientation,
+) {
+    enum class Orientation {
+        HORIZONTAL, VERTICAL
+    }
+}
+
+
+enum class Theme(@param:StringRes val theme: Int) {
+    DARK(R.string.dark),
+    LIGHT(R.string.light),
+    DEVICE_THEME(R.string.system),
+}
+
+enum class ProfileColor(
+    val color: Color,
+    @param:StringRes val label: Int? = null,
+) {
+    PURPLE(Color(0xFFC262FF)),
+    BLUE(Color(0xFF0BA1DA), R.string.mlue),
+    GREEN(Color(0xFF06C94B)),
+    ORANGE(Color(0xFFEE9500)),
+    PINK(Color(0xFFFF527E)),
+    RED(Color(0xFFFF3131)),
+    GRAY(Color(0xFF989898));
+}
+
+@Serializable
+data object SettingsPage

@@ -1,0 +1,28 @@
+plugins {
+    alias(libs.plugins.android.libraryMultiplatform)
+    alias(libs.plugins.kotlin.multiplatform)
+    alias(libs.plugins.detekt)
+    alias(libs.plugins.kotlin.serialization)
+}
+
+kotlin {
+    jvmToolchain(21)
+
+    android {
+        namespace = "com.imashnake.animite.api.preferences"
+        withHostTest {  }
+    }
+
+    sourceSets {
+        commonMain.dependencies {
+            implementation(libs.datastore)
+            implementation(libs.kotlinx.serialization.json)
+        }
+    }
+}
+
+detekt {
+    buildUponDefaultConfig = true
+    config.setFrom("$rootDir/config/detekt/detekt.yml")
+    basePath = rootDir.absolutePath
+}

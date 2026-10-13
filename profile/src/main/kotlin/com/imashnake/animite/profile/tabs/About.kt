@@ -1,0 +1,194 @@
+package com.imashnake.animite.profile.tabs
+
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.res.dimensionResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.util.fastForEach
+import com.imashnake.animite.api.anilist.sanitize.profile.User
+import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.core.ui.component.StatsRow
+import com.imashnake.animite.core.ui.ext.maxHeight
+import com.imashnake.animite.core.ui.layout.NestedScrollableContent
+import com.imashnake.animite.profile.R
+import com.imashnake.animite.profile.UserDescriptionMarkdown
+import kotlinx.collections.immutable.ImmutableList
+import kotlinx.coroutines.launch
+
+/**
+ * Viewer's stats and genre distribution.
+ *
+ * @param user The viewer.
+ */
+@Composable
+fun AboutTab(
+    user: User,
+    showUserDescription: Boolean,
+    onUserDescriptionClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    contentPadding: PaddingValues = PaddingValues(),
+) {
+    val scrollState = rememberScrollState()
+
+    Column(
+        modifier = modifier
+            .fillMaxHeight()
+            .verticalScroll(scrollState)
+            .padding(contentPadding),
+        verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)
+    ) {
+        if (showUserDescription) {
+            UserDescription(
+                description = user.description,
+                onDescriptionClick = onUserDescriptionClick
+            )
+        }
+
+        StatsRow(
+            stats = user.stats,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text(
+                text = it.label,
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.labelSmall,
+                textAlign = TextAlign.Center
+            )
+
+            Text(
+                text = it.value,
+                color = MaterialTheme.colorScheme.onBackground,
+                style = MaterialTheme.typography.displaySmall
+            )
+        }
+
+        if (user.genres.isNotEmpty()) Genres(user.genres)
+    }
+}
+
+@Composable
+private fun UserDescription(
+    description: String?,
+    onDescriptionClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    description?.let {
+        Crossfade(
+            targetState = description,
+            modifier = modifier
+                .animateContentSize()
+                .clip(RoundedCornerShape(LocalPaddings.current.small))
+                .clickable { onDescriptionClick() }
+                .padding(horizontal = LocalPaddings.current.small)
+        ) {
+            NestedScrollableContent(
+                modifier = Modifier.maxHeight(dimensionResource(R.dimen.user_about_description_height)),
+                contentModifier = Modifier.fillMaxWidth()
+            ) { modifier ->
+                UserDescriptionMarkdown(it, modifier)
+            }
+        }
+    }
+}
+
+@Composable
+private fun Genres(
+    genres: ImmutableList<User.Genre>,
+    modifier: Modifier = Modifier
+) {
+    val barWidthAnimation = remember { Animatable(0f) }
+    val barAlphaAnimation = remember { Animatable(0f) }
+    val barColor = MaterialTheme.colorScheme.primary
+    LaunchedEffect("barAnimation") {
+        launch {
+            barWidthAnimation.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 1000, delayMillis = 250)
+            )
+        }
+        launch {
+            barAlphaAnimation.animateTo(
+                targetValue = 1f,
+                animationSpec = tween(durationMillis = 1000, delayMillis = 250)
+            )
+        }
+    }
+
+    Text(
+        text = stringResource(R.string.genres),
+        style = MaterialTheme.typography.titleMedium
+    )
+    Row(modifier.height(IntrinsicSize.Max)) {
+        Column(horizontalAlignment = Alignment.End) {
+            genres.fastForEach {
+                Text(
+                    text = it.genre,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.74f),
+                    style = MaterialTheme.typography.bodyLarge
+                )
+            }
+        }
+        Column(
+            modifier = Modifier
+                .fillMaxHeight()
+                .padding(
+                    start = LocalPaddings.current.small,
+                    end = LocalPaddings.current.large
+                )
+                .widthIn(max = 250.dp),
+            verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.tiny)
+        ) {
+            val highestCount = genres.maxOf { it.mediaCount }
+            genres.fastForEach {
+                val weight = it.mediaCount/highestCount.toFloat()
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth(fraction = weight)
+                        .weight(1f)
+                        .graphicsLayer { alpha = weight * barAlphaAnimation.value }
+                        .drawBehind {
+                            drawRoundRect(
+                                color = barColor,
+                                size = Size(
+                                    width = size.width * barWidthAnimation.value,
+                                    height = size.height
+                                ),
+                                cornerRadius = CornerRadius(size.height)
+                            )
+                        },
+                )
+            }
+        }
+    }
+}

@@ -1,0 +1,204 @@
+[plugins]
+
+android-application = { id = "com.android.application", version.ref = "agp" }
+compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+compose-multiplatform = { id = "org.jetbrains.compose", version.ref = "composeMultiplatform" }
+android-library = { id = "com.android.library", version.ref = "agp" }
+android-libraryMultiplatform = { id = "com.android.kotlin.multiplatform.library", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref = "kotlin" }
+kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
+hilt = { id = "com.google.dagger.hilt.android", version.ref = "dagger" }
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
+detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
+apollo-cache = { id = "com.apollographql.cache:normalized-cache-apollo-compiler-plugin", version.ref = "apolloCache" }
+apollo-kotlin = { id = "com.apollographql.apollo", version.ref = "apollo" }
+
+
+[versions]
+
+# Core Library Desugaring
+# https://github.com/google/desugar_jdk_libs/blob/master/CHANGELOG.md
+desugaring = "2.1.5"
+
+# Android Gradle Plugin
+# https://developer.android.com/studio/releases/gradle-plugin.
+agp = "9.4.0"
+
+# AndroidX
+# https://androidx.tech.
+activity = "1.13.0"
+core = "1.19.0"
+coreSplashscreen = "1.2.0"
+lifecycle = "2.11.0"
+extJunit = "1.3.0"
+espresso = "3.7.0"
+navigation = "2.10.1"
+
+# Apollo Kotlin
+# https://github.com/apollographql/apollo-kotlin/releases
+apollo = "5.1.0"
+apolloCache = "1.0.7"
+
+# DataStore
+# https://developer.android.com/jetpack/androidx/releases/datastore
+datastore = "1.2.1"
+
+# COIL
+# https://github.com/coil-kt/coil/blob/main/CHANGELOG.md.
+coil = "3.6.2"
+
+# Compose
+# https://developer.android.com/jetpack/androidx/releases/compose
+composeAnimation = "1.12.1"
+composeFoundation = "1.12.1"
+composeMaterial = "1.12.1"
+composeMaterial3 = "1.5.0-alpha24"
+composeRuntime = "1.12.1"
+composeUi = "1.12.1"
+composeIcons = "1.7.8"
+
+# Dagger
+# https://github.com/google/dagger/releases
+dagger = "2.60.1"
+
+# Hilt
+# https://developer.android.com/jetpack/androidx/releases/hilt.
+hilt = "1.4.0"
+
+# Kotlin
+# https://kotlinlang.org/docs/releases.html#release-details
+kotlin = "2.4.20"
+kotlinxTime = "0.8.0"
+kotlinxCollectionsImmutable = "0.5.2"
+coroutines = "1.11.0"
+serialization = "1.11.0"
+
+# Compose Multiplatform
+# https://github.com/JetBrains/compose-multiplatform
+composeMultiplatform = "1.12.0"
+
+# KSP
+# https://github.com/google/ksp/releases
+ksp = "2.3.12"
+
+# Ktor
+# https://ktor.io/docs/releases.html#release-details
+ktor = "3.5.0"
+
+# Test
+# https://github.com/junit-team/junit4/releases
+junit = "4.13.2"
+
+# detekt
+# https://github.com/detekt/detekt/releases
+detekt = "1.23.8"
+
+# Compose Markdown
+# https://github.com/mikepenz/multiplatform-markdown-renderer/releases
+composeMarkdown = "0.45.0"
+
+# MaterialKolor
+# https://github.com/jordond/MaterialKolor
+materialKolor = "5.0.1"
+
+# Cascade
+# https://github.com/saket/cascade/releases
+saketCascade = "2.3.0"
+
+# Reorderable
+# https://github.com/Calvin-LL/Reorderable/releases
+reorderable = "3.1.0"
+
+# Media3 & Jsoup
+media3 = "1.5.1"
+jsoup = "1.18.3"
+
+[libraries]
+
+android-desugaring = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugaring" }
+androidx-media3-exoplayer = { group = "androidx.media3", name = "media3-exoplayer", version.ref = "media3" }
+androidx-media3-ui = { group = "androidx.media3", name = "media3-ui", version.ref = "media3" }
+androidx-media3-common = { group = "androidx.media3", name = "media3-common", version.ref = "media3" }
+androidx-media3-datasource = { group = "androidx.media3", name = "media3-datasource", version.ref = "media3" }
+androidx-media3-database = { group = "androidx.media3", name = "media3-database", version.ref = "media3" }
+androidx-media3-exoplayer-hls = { group = "androidx.media3", name = "media3-exoplayer-hls", version.ref = "media3" }
+jsoup = { group = "org.jsoup", name = "jsoup", version.ref = "jsoup" }
+androidx-activityCompose = { group = "androidx.activity", name = "activity-compose", version.ref = "activity" }
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "core" }
+androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "coreSplashscreen" }
+androidx-lifecycleRuntimeKtx = { group = "androidx.lifecycle", name = "lifecycle-runtime-ktx", version.ref = "lifecycle" }
+androidx-navigationCommon = { group = "androidx.navigation", name = "navigation-common", version.ref = "navigation" }
+androidx-navigationCompose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigation" }
+androidx-test-junit = { group = "androidx.test.ext", name = "junit", version.ref = "extJunit" }
+androidx-test-espressoCore = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
+compose-animation = { group = "androidx.compose.animation", name = "animation", version.ref = "composeAnimation" }
+compose-animation-graphics = { group = "androidx.compose.animation", name = "animation-graphics", version.ref = "composeAnimation" }
+compose-components-resources = { group = "org.jetbrains.compose.components", name = "components-resources", version.ref = "composeMultiplatform" }
+compose-foundation = { group = "androidx.compose.foundation", name = "foundation", version.ref = "composeFoundation" }
+compose-material = { group = "androidx.compose.material", name = "material", version.ref = "composeMaterial" }
+compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core", version.ref = "composeIcons" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "composeMaterial3" }
+compose-runtime = { group = "androidx.compose.runtime", name = "runtime", version.ref = "composeRuntime" }
+compose-runtime-annotation = { group = "androidx.compose.runtime", name = "runtime-annotation", version.ref = "composeRuntime" }
+compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "composeUi" }
+compose-ui-text-googleFonts = { group = "androidx.compose.ui", name = "ui-text-google-fonts", version.ref = "composeUi" }
+compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling", version.ref = "composeUi" }
+compose-ui-toolingPreview = { group = "androidx.compose.ui", name = "ui-tooling-preview", version.ref = "composeUi" }
+compose-test-ui-testJunit4 = { group = "androidx.compose.ui", name = "ui-test-junit4", version.ref = "composeUi" }
+apollo-runtime = { group = "com.apollographql.apollo", name = "apollo-runtime", version.ref = "apollo" }
+apollo-cache-memory = { group = "com.apollographql.cache", name = "normalized-cache", version.ref = "apolloCache" }
+apollo-cache-sqlite = { group = "com.apollographql.cache", name = "normalized-cache-sqlite", version.ref = "apolloCache" }
+coil-compose = { group = "io.coil-kt.coil3", name = "coil-compose", version.ref = "coil" }
+coil-gif = { group = "io.coil-kt.coil3", name = "coil-gif", version.ref = "coil" }
+coil-network = { group = "io.coil-kt.coil3", name = "coil-network-ktor3", version.ref = "coil" }
+ktor-engine-android = { module = "io.ktor:ktor-client-android", version.ref = "ktor" }
+ktor-engine-darwin = { module = "io.ktor:ktor-client-darwin", version.ref = "ktor" }
+ktor-engine-java = { module = "io.ktor:ktor-client-java", version.ref = "ktor" }
+kotlinx-collectionsImmutable = { group = "org.jetbrains.kotlinx", name = "kotlinx-collections-immutable", version.ref = "kotlinxCollectionsImmutable" }
+kotlinx-coroutines-android = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-android", version.ref = "coroutines" }
+kotlinx-coroutines-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-coroutines-core", version.ref = "coroutines" }
+kotlinx-serialization-core = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-core", version.ref = "serialization" }
+kotlinx-serialization-json = { group = "org.jetbrains.kotlinx", name = "kotlinx-serialization-json", version.ref = "serialization" }
+kotlinx-datetime = { group = "org.jetbrains.kotlinx", name = "kotlinx-datetime", version.ref = "kotlinxTime" }
+datastore = { group = "androidx.datastore", name = "datastore-preferences", version.ref = "datastore" }
+hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "dagger" }
+hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "dagger" }
+hilt-navigationCompose = { group = "androidx.hilt", name = "hilt-navigation-compose", version.ref = "hilt" }
+test-junit = { group = "junit", name = "junit", version.ref = "junit" }
+materialKolor = { group = "com.materialkolor", name = "material-kolor", version.ref = "materialKolor" }
+ktor-core = { module = "io.ktor:ktor-client-core", version.ref = "ktor" }
+ktor-cio = { module = "io.ktor:ktor-client-cio", version.ref = "ktor" }
+ktor-logging = { module = "io.ktor:ktor-client-logging", version.ref = "ktor" }
+ktor-contentNegotation = { module = "io.ktor:ktor-client-content-negotiation", version.ref = "ktor" }
+ktor-serialization = { module = "io.ktor:ktor-serialization-kotlinx-json", version.ref = "ktor" }
+saket-cascade = { group = "me.saket.cascade", name = "cascade-compose", version.ref = "saketCascade" }
+reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reorderable" }
+mikepenz-composeMarkdown = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3-android", version.ref = "composeMarkdown" }
+mikepenz-composeMarkdown-coil = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-coil3", version.ref = "composeMarkdown" }
+
+
+[bundles]
+
+compose = [
+    "compose-animation",
+    "compose-foundation",
+    "compose-material3",
+    "compose-runtime",
+    "compose-ui",
+]
+
+coil = [
+    "coil-compose",
+    "coil-network",
+    "coil-gif",
+    "ktor-engine-android"
+]
+
+ktor = [
+    "ktor-core",
+    "ktor-cio",
+    "ktor-logging",
+    "ktor-contentNegotation",
+    "ktor-serialization"
+]

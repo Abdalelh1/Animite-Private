@@ -1,0 +1,47 @@
+query MediaMediumListQuery(
+    $type: MediaType,
+    $page: Int,
+    $perPage: Int,
+    $sort: [MediaSort],
+    $genre: String,
+    $genreIn: [String],
+    $genreNotIn: [String],
+    $season: MediaSeason,
+    $startDate: FuzzyDateInt,
+    $endDate: FuzzyDateInt,
+    $formatIn: [MediaFormat],
+    $formatNotIn: [MediaFormat],
+    $statusIn: [MediaStatus],
+    $statusNotIn: [MediaStatus],
+    $search: String,
+    $isAdult: Boolean,
+) {
+    page: Page (
+        page: $page,
+        perPage: $perPage
+    ) {
+        pageInfo {
+            currentPage
+            lastPage
+            hasNextPage
+        }
+        media(
+            type: $type,
+            sort: $sort,
+            genre: $genre,
+            genre_in: $genreIn,
+            genre_not_in: $genreNotIn,
+            season: $season,
+            startDate_greater: $startDate,
+            startDate_lesser: $endDate,
+            format_in: $formatIn,
+            format_not_in: $formatNotIn,
+            status_in: $statusIn,
+            status_not_in: $statusNotIn,
+            search: $search,
+            isAdult: $isAdult,
+        ) {
+            ...MediaMedium
+        }
+    }
+}

@@ -1,0 +1,36 @@
+fragment MediaTracking on Media {
+    id
+    type
+    coverImage {
+        large
+        color
+    }
+    bannerImage
+    title {
+        userPreferred
+        romaji
+        english
+        native
+    }
+    season
+    seasonYear
+    format
+    episodes
+    chapters
+    nextAiringEpisode {
+        episode
+    }
+    isFavourite
+    mediaListEntry {
+        startedAt {
+            year
+            month
+            day
+        }
+        completedAt {
+            year
+            month
+            day
+        }
+    }
+}

@@ -1,0 +1,28 @@
+query MediaListQuery(
+    $type: MediaType,
+    $page: Int,
+    $perPage: Int,
+    $sort: [MediaSort],
+    # region Popular This Season
+    $season: MediaSeason,
+    $seasonYear: Int,
+    # endregion
+    $isAdult: Boolean,
+) {
+    page: Page (
+        page: $page,
+        perPage: $perPage
+    ) {
+        media(
+            type: $type,
+            sort: $sort,
+            # region Popular This Season
+            season: $season,
+            seasonYear: $seasonYear
+            # endregion
+            isAdult: $isAdult
+        ) {
+            ...MediaSmall
+        }
+    }
+}
