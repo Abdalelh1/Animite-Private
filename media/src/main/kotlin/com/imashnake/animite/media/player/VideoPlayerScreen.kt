@@ -117,6 +117,7 @@ private data class EpisodeUiModel(
     val title: String,
     val url: String,
     val durationText: String = "24:00",
+    val thumbnail: String? = null,
 )
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
@@ -221,7 +222,8 @@ fun VideoPlayerScreen(
                     val epNum = obj.optString("number", "${i + 1}").removeSuffix(".0")
                     val title = obj.optString("title", "Episode $epNum")
                     val url = obj.optString("url", "")
-                    list.add(EpisodeUiModel(number = epNum, title = title, url = url))
+                    val thumb = if (obj.has("thumbnail")) obj.optString("thumbnail").takeIf { it.isNotBlank() } else null
+                    list.add(EpisodeUiModel(number = epNum, title = title, url = url, thumbnail = thumb))
                 }
             }
         } catch (_: Exception) {}

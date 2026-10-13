@@ -174,5 +174,10 @@
     <string name="episodes_drawer">Episode</string>
     <string name="download_action">Download</string>
     <string name="download_not_supported">Direct download is not available for this stream</string>
+    <string name="jump_to_ep">Jump</string>
+    <string name="ep_number_hint">Episode #</string>
+    <string name="sort_oldest_first">Oldest first</string>
+    <string name="sort_newest_first">Newest first</string>
+    <string name="no_episodes_found_for_anime">No episodes found for this anime</string>
 </resources>
 

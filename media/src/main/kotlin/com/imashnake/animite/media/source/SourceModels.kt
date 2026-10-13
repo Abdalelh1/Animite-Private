@@ -23,6 +23,7 @@ data class AnimeEpisode(
     val number: Float,
     val title: String? = null,
     val url: String,
+    val thumbnail: String? = null,
 )
 
 @Serializable

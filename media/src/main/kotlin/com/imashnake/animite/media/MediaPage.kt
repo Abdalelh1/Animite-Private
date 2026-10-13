@@ -375,6 +375,7 @@ fun MediaPage(
                                                 }
                                                 MediaEpisodesSection(
                                                     titles = allEpisodeTitles,
+                                                    fallbackThumbnail = media.bannerImage ?: media.coverImage,
                                                     onNavigateToPlayer = onNavigateToPlayer,
                                                     modifier = Modifier
                                                         .skipToLookaheadSize()

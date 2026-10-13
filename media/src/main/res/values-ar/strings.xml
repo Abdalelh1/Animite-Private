@@ -175,5 +175,10 @@
     <string name="episodes_drawer">الحلقات</string>
     <string name="download_action">تحميل</string>
     <string name="download_not_supported">التحميل المباشر غير متوفر لهذا البث</string>
+    <string name="jump_to_ep">انتقال</string>
+    <string name="ep_number_hint">رقم الحلقة</string>
+    <string name="sort_oldest_first">الأقدم أولاً</string>
+    <string name="sort_newest_first">الأحدث أولاً</string>
+    <string name="no_episodes_found_for_anime">لم يتم العثور على حلقات لهذا الأنمي</string>
 </resources>
 

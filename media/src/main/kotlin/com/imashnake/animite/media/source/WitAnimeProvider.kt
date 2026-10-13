@@ -52,6 +52,10 @@ class WitAnimeProvider : EpisodeSourceProvider {
             val doc = HttpHelper.getDocument(animeUrl)
             val episodes = mutableListOf<AnimeEpisode>()
 
+            val poster = doc.selectFirst(".anime-thumbnail img, .poster img, img")?.let { img ->
+                img.attr("abs:data-src").ifEmpty { img.attr("abs:src") }
+            }
+
             // WitAnime episodes use /watch/{slug}/{num} or /episode/{slug}/{num}
             doc.select("a[href*=\"/watch/\"], a[href*=\"/episode/\"]").forEach { link ->
                 val href = link.attr("abs:href")
@@ -63,11 +67,16 @@ class WitAnimeProvider : EpisodeSourceProvider {
                     ?: numberRegex.findAll(text).lastOrNull()?.value?.toFloatOrNull()
                     ?: (episodes.size + 1).toFloat()
 
+                val epThumb = link.selectFirst("img")?.let { img ->
+                    img.attr("abs:data-src").ifEmpty { img.attr("abs:src") }
+                } ?: poster
+
                 episodes.add(
                     AnimeEpisode(
                         number = epNumber,
                         title = if (text.isNotEmpty() && !text.contains("http")) "الحلقة $text" else "الحلقة ${epNumber.toInt()}",
                         url = href,
+                        thumbnail = epThumb,
                     )
                 )
             }

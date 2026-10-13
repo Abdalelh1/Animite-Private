@@ -159,6 +159,10 @@ object Anime3rbHtmlParser {
      */
     fun parseEpisodesList(doc: Document): List<AnimeEpisode> {
         val episodes = mutableListOf<AnimeEpisode>()
+        val poster = doc.selectFirst("img[src*=\"images.anime3rb.com\"], img")?.let { img ->
+            val src = img.attr("abs:data-src").ifEmpty { img.attr("abs:src") }
+            if (src.isNotEmpty()) src else resolveUrl(img.attr("src"))
+        }
 
         // Anime3rb title page contains anchor elements with class btn-light and href containing /episode/
         doc.select("a[href*=\"/episode/\"]").forEach { link ->
@@ -179,11 +183,17 @@ object Anime3rbHtmlParser {
                 else -> "الحلقة ${epNum.toInt()}"
             }
 
+            val epThumb = link.selectFirst("img")?.let { img ->
+                val src = img.attr("abs:data-src").ifEmpty { img.attr("abs:src") }
+                if (src.isNotEmpty()) src else resolveUrl(img.attr("src"))
+            } ?: poster
+
             episodes.add(
                 AnimeEpisode(
                     number = epNum,
                     title = fullTitle,
                     url = href,
+                    thumbnail = epThumb,
                 )
             )
         }
