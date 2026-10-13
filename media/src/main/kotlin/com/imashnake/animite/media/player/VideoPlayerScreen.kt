@@ -106,10 +106,12 @@ import com.imashnake.animite.core.ui.LocalPaddings
 import com.imashnake.animite.media.R
 import com.imashnake.animite.media.player.cache.MediaCacheManager
 import com.imashnake.animite.media.source.AnimeStreamServer
+import com.imashnake.animite.media.source.EpisodeJsonCache
+import com.imashnake.animite.media.source.EpisodeSessionRepository
+import com.imashnake.animite.media.source.SourceJsonParser
 import com.imashnake.animite.media.source.StreamLinkType
 import com.imashnake.animite.navigation.VideoPlayerRoute
 import kotlinx.coroutines.delay
-import org.json.JSONArray
 import java.util.Locale
 
 private data class EpisodeUiModel(
@@ -134,49 +136,21 @@ fun VideoPlayerScreen(
 
     val exoPlayer = remember { viewModel.getOrCreatePlayer() }
 
-    // Parse direct servers from route
+    // Parse direct servers from repository or route JSON
     val parsedDirectServers = remember(route.serversJson, route.initialUrl) {
-        val parsedList = mutableListOf<AnimeStreamServer>()
-        try {
-            if (route.serversJson.isNotEmpty() && route.serversJson != "[]") {
-                val jsonArr = JSONArray(route.serversJson)
-                for (i in 0 until jsonArr.length()) {
-                    val obj = jsonArr.getJSONObject(i)
-                    val name = obj.optString("name", "HD")
-                    val url = obj.optString("url")
-                    val quality = obj.optString("quality", "HD")
-                    val isDirect = obj.optBoolean("isDirectVideo", true)
-                    val linkTypeName = obj.optString("linkType", StreamLinkType.DIRECT_VIDEO.name)
-                    val linkType = try {
-                        StreamLinkType.valueOf(linkTypeName)
-                    } catch (_: Exception) {
-                        StreamLinkType.DIRECT_VIDEO
-                    }
+        val sessionServers = EpisodeSessionRepository.getActiveServers()
+        val serversList = if (sessionServers.isNotEmpty()) {
+            sessionServers
+        } else {
+            SourceJsonParser.decodeServers(route.serversJson)
+        }
 
-                    if (url.isNotEmpty() && linkType == StreamLinkType.DIRECT_VIDEO) {
-                        val headersMap = mutableMapOf<String, String>()
-                        val headersObj = obj.optJSONObject("headers")
-                        headersObj?.keys()?.forEach { key ->
-                            headersMap[key] = headersObj.getString(key)
-                        }
+        val directList = serversList.filter {
+            it.url.isNotEmpty() && it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
+        }.toMutableList()
 
-                        parsedList.add(
-                            AnimeStreamServer(
-                                name = name,
-                                url = url,
-                                isDirectVideo = isDirect,
-                                quality = quality,
-                                linkType = linkType,
-                                headers = headersMap,
-                            )
-                        )
-                    }
-                }
-            }
-        } catch (_: Exception) {}
-
-        if (parsedList.isEmpty() && route.initialUrl.isNotEmpty()) {
-            parsedList.add(
+        if (directList.isEmpty() && route.initialUrl.isNotEmpty()) {
+            directList.add(
                 AnimeStreamServer(
                     name = route.initialQuality.ifEmpty { "HD" },
                     url = route.initialUrl,
@@ -187,7 +161,7 @@ fun VideoPlayerScreen(
             )
         }
 
-        parsedList.distinctBy { it.quality }
+        directList.distinctBy { it.quality }
     }
 
     var currentServers by remember { mutableStateOf(parsedDirectServers) }
@@ -213,35 +187,38 @@ fun VideoPlayerScreen(
     }
 
     val episodesList = remember(route.episodesJson, activeEpisodeNumber) {
-        val list = mutableListOf<EpisodeUiModel>()
-        try {
-            if (route.episodesJson.isNotEmpty() && route.episodesJson != "[]") {
-                val jsonArr = JSONArray(route.episodesJson)
-                for (i in 0 until jsonArr.length()) {
-                    val obj = jsonArr.getJSONObject(i)
-                    val epNum = obj.optString("number", "${i + 1}").removeSuffix(".0")
-                    val title = obj.optString("title", "Episode $epNum")
-                    val url = obj.optString("url", "")
-                    val thumb = if (obj.has("thumbnail")) obj.optString("thumbnail").takeIf { it.isNotBlank() } else null
-                    list.add(EpisodeUiModel(number = epNum, title = title, url = url, thumbnail = thumb))
-                }
-            }
-        } catch (_: Exception) {}
+        val sessionEpisodes = EpisodeSessionRepository.getActiveEpisodes()
+        val diskEpisodes = if (sessionEpisodes.isEmpty()) {
+            EpisodeJsonCache.getCachedEpisodes(context, listOf(route.animeTitle))?.episodes ?: emptyList()
+        } else emptyList()
 
-        if (list.isEmpty()) {
+        val parsedEpisodes = when {
+            sessionEpisodes.isNotEmpty() -> sessionEpisodes
+            diskEpisodes.isNotEmpty() -> diskEpisodes
+            else -> SourceJsonParser.decodeEpisodes(route.episodesJson)
+        }
+
+        if (parsedEpisodes.isNotEmpty()) {
+            parsedEpisodes.map { ep ->
+                val epNum = if (ep.number % 1.0f == 0.0f) ep.number.toInt().toString() else ep.number.toString()
+                EpisodeUiModel(
+                    number = epNum,
+                    title = ep.title ?: "Episode $epNum",
+                    url = ep.url,
+                    thumbnail = ep.thumbnail,
+                )
+            }
+        } else {
             val baseNum = activeEpisodeNumber.toFloatOrNull()?.toInt() ?: 1
             val total = maxOf(12, baseNum + 5)
-            for (i in 1..total) {
-                list.add(
-                    EpisodeUiModel(
-                        number = i.toString(),
-                        title = "Episode $i",
-                        url = "",
-                    )
+            (1..total).map { i ->
+                EpisodeUiModel(
+                    number = i.toString(),
+                    title = "Episode $i",
+                    url = "",
                 )
             }
         }
-        list
     }
 
     // Playback states

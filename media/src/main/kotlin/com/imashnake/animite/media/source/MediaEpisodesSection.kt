@@ -77,8 +77,7 @@ import com.imashnake.animite.navigation.VideoPlayerRoute
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
+import androidx.compose.ui.platform.LocalContext
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -88,6 +87,7 @@ fun MediaEpisodesSection(
     modifier: Modifier = Modifier,
     fallbackThumbnail: String? = null,
 ) {
+    val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
     val focusManager = LocalFocusManager.current
     val keyboardController = LocalSoftwareKeyboardController.current
@@ -109,15 +109,32 @@ fun MediaEpisodesSection(
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
-    // Multi-source automated aggregator: fetches matching anime and episodes seamlessly
+    // Multi-source automated aggregator with instant JSON Cache
     LaunchedEffect(titles) {
         if (titles.isEmpty()) return@LaunchedEffect
 
-        isLoadingEpisodes = true
+        // 1. Instant load from local JSON cache (0ms latency)
+        val cached = withContext(Dispatchers.IO) {
+            EpisodeJsonCache.getCachedEpisodes(context, titles)
+        }
+        if (cached != null && cached.episodes.isNotEmpty()) {
+            matchedAnime = AnimeSearchResult(
+                id = cached.matchedUrl,
+                title = cached.animeTitle,
+                url = cached.matchedUrl,
+            )
+            episodes = cached.episodes
+            activeProvider = EpisodeSourcesManager.getProvider(cached.providerId)
+            Log.d("ANIMITE_DIAG", "LOADED_INSTANT_FROM_JSON_CACHE: count=${cached.episodes.size}")
+
+            if (!EpisodeJsonCache.isCacheExpired(cached)) {
+                return@LaunchedEffect
+            }
+        } else {
+            isLoadingEpisodes = true
+        }
+
         searchError = null
-        episodes = emptyList()
-        matchedAnime = null
-        activeProvider = null
 
         withContext(Dispatchers.IO) {
             try {
@@ -126,13 +143,24 @@ fun MediaEpisodesSection(
                     matchedAnime = aggResult.matchedAnime
                     episodes = aggResult.episodes
                     activeProvider = aggResult.provider
-                    Log.d("ANIMITE_DIAG", "AGGREGATOR_SUCCESS: provider=${aggResult.provider.id}, episodesCount=${aggResult.episodes.size}")
-                } else {
+
+                    // Save to local JSON cache for instant future loads
+                    EpisodeJsonCache.saveEpisodes(
+                        context = context,
+                        title = aggResult.matchedAnime.title,
+                        providerId = aggResult.provider.id,
+                        matchedUrl = aggResult.matchedAnime.url,
+                        episodes = aggResult.episodes,
+                    )
+                    Log.d("ANIMITE_DIAG", "AGGREGATOR_SUCCESS_SAVED_JSON: provider=${aggResult.provider.id}, count=${aggResult.episodes.size}")
+                } else if (episodes.isEmpty()) {
                     searchError = "NOT_FOUND"
                 }
             } catch (e: Exception) {
                 Log.e("ANIMITE_DIAG", "AGGREGATOR_ERROR: ${e.message}")
-                searchError = e.localizedMessage ?: "ERROR"
+                if (episodes.isEmpty()) {
+                    searchError = e.localizedMessage ?: "ERROR"
+                }
             } finally {
                 isLoadingEpisodes = false
             }
@@ -446,42 +474,16 @@ fun MediaEpisodesSection(
                                                 ?: sList.firstOrNull()
 
                                             if (chosenStream != null) {
-                                                val jsonArr = JSONArray().apply {
-                                                    sList.forEach { s ->
-                                                        put(JSONObject().apply {
-                                                            put("name", s.name)
-                                                            put("url", s.url)
-                                                            put("quality", s.quality)
-                                                            put("isDirectVideo", s.isDirectVideo)
-                                                            put("linkType", s.linkType.name)
-                                                            if (s.headers.isNotEmpty()) {
-                                                                val hObj = JSONObject()
-                                                                s.headers.forEach { (k, v) -> hObj.put(k, v) }
-                                                                put("headers", hObj)
-                                                            }
-                                                        })
-                                                    }
-                                                }
-                                                val epJsonArr = JSONArray().apply {
-                                                    episodes.forEach { epItem ->
-                                                        put(JSONObject().apply {
-                                                            put("number", epItem.number.toString())
-                                                            put("title", epItem.title ?: "")
-                                                            put("url", epItem.url)
-                                                            if (!epItem.thumbnail.isNullOrBlank()) {
-                                                                put("thumbnail", epItem.thumbnail)
-                                                            }
-                                                        })
-                                                    }
-                                                }
+                                                EpisodeSessionRepository.setActiveEpisodes(episodes)
+                                                EpisodeSessionRepository.setActiveServers(sList)
                                                 onNavigateToPlayer(
                                                     VideoPlayerRoute(
                                                         animeTitle = matchedAnime?.title ?: titles.firstOrNull() ?: "",
                                                         episodeNumber = epNumStr,
                                                         initialQuality = chosenStream.quality,
                                                         initialUrl = chosenStream.url,
-                                                        serversJson = jsonArr.toString(),
-                                                        episodesJson = epJsonArr.toString(),
+                                                        serversJson = SourceJsonParser.encodeServers(sList),
+                                                        episodesJson = SourceJsonParser.encodeEpisodes(episodes),
                                                         providerId = prov.id,
                                                     )
                                                 )
@@ -690,34 +692,8 @@ fun MediaEpisodesSection(
                                         .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f))
                                         .clickable {
                                             val prov = activeProvider ?: EpisodeSourcesManager.providers.first()
-                                            val jsonArr = JSONArray().apply {
-                                                directStreams.forEach { s ->
-                                                    put(JSONObject().apply {
-                                                        put("name", s.name)
-                                                        put("url", s.url)
-                                                        put("quality", s.quality)
-                                                        put("isDirectVideo", s.isDirectVideo)
-                                                        put("linkType", s.linkType.name)
-                                                        if (s.headers.isNotEmpty()) {
-                                                            val hObj = JSONObject()
-                                                            s.headers.forEach { (k, v) -> hObj.put(k, v) }
-                                                            put("headers", hObj)
-                                                        }
-                                                    })
-                                                }
-                                            }
-                                            val epJsonArr = JSONArray().apply {
-                                                episodes.forEach { ep ->
-                                                    put(JSONObject().apply {
-                                                        put("number", ep.number.toString())
-                                                        put("title", ep.title ?: "")
-                                                        put("url", ep.url)
-                                                        if (!ep.thumbnail.isNullOrBlank()) {
-                                                            put("thumbnail", ep.thumbnail)
-                                                        }
-                                                    })
-                                                }
-                                            }
+                                            EpisodeSessionRepository.setActiveEpisodes(episodes)
+                                            EpisodeSessionRepository.setActiveServers(directStreams)
                                             showServerDialog = false
                                             onNavigateToPlayer(
                                                 VideoPlayerRoute(
@@ -725,8 +701,8 @@ fun MediaEpisodesSection(
                                                     episodeNumber = epNumStr,
                                                     initialQuality = stream.quality,
                                                     initialUrl = stream.url,
-                                                    serversJson = jsonArr.toString(),
-                                                    episodesJson = epJsonArr.toString(),
+                                                    serversJson = SourceJsonParser.encodeServers(directStreams),
+                                                    episodesJson = SourceJsonParser.encodeEpisodes(episodes),
                                                     providerId = prov.id,
                                                 )
                                             )
