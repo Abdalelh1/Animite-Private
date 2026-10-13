@@ -58,8 +58,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.rounded.Favorite
+import androidx.compose.foundation.layout.Spacer
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ButtonGroupDefaults
@@ -219,6 +224,12 @@ fun MediaPage(
 
     var isExpanded by rememberSaveable { mutableStateOf(false) }
 
+    val context = LocalContext.current
+    var isInLibrary by remember(media) {
+        val mediaId = (media as? Resource.Success)?.data?.id ?: id
+        mutableStateOf(LocalLibraryManager.isInLibrary(context, mediaId))
+    }
+
     val deviceScreenCornerRadiusDp = with(LocalDensity.current) {
         deviceScreenCornerRadius.toDp()
     }
@@ -289,6 +300,45 @@ fun MediaPage(
                                                     .padding(horizontalInsets)
                                                     .height(dimensionResource(R.dimen.media_details_height) + LocalPaddings.current.medium / 2),
                                             )
+
+                                            if (viewModel.isAnime) {
+                                                MediaActionButtons(
+                                                    isAnime = true,
+                                                    isInLibrary = isInLibrary,
+                                                    onToggleLibrary = {
+                                                        val added = LocalLibraryManager.toggleLibrary(context, media.id)
+                                                        isInLibrary = added
+                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        Toast.makeText(
+                                                            context,
+                                                            if (added) context.getString(R.string.added_to_library)
+                                                            else context.getString(R.string.removed_from_library),
+                                                            Toast.LENGTH_SHORT
+                                                        ).show()
+                                                    },
+                                                    onWatchClick = {
+                                                        val otherTitlesJson = try {
+                                                            val arr = org.json.JSONArray()
+                                                            media.otherTitles.forEach { arr.put(it) }
+                                                            arr.toString()
+                                                        } catch (_: Exception) { "[]" }
+
+                                                        onNavigateToEpisodes(
+                                                            EpisodesRoute(
+                                                                animeId = media.id,
+                                                                animeTitle = media.title.orEmpty(),
+                                                                otherTitlesJson = otherTitlesJson,
+                                                                fallbackThumbnail = media.bannerImage ?: media.coverImage ?: "",
+                                                            )
+                                                        )
+                                                    },
+                                                    modifier = Modifier
+                                                        .skipToLookaheadSize()
+                                                        .fillMaxWidth()
+                                                        .padding(horizontal = LocalPaddings.current.large)
+                                                        .padding(horizontalInsets)
+                                                )
+                                            }
 
                                             if (media.info.isNotEmpty()) {
                                                 MediaInfo(
@@ -1666,7 +1716,7 @@ private fun MediaEpisodesBanner(
             // Prominent Action Button
             Button(
                 onClick = onClick,
-                shape = RoundedCornerShape(14.dp),
+                shape = CircleShape,
                 colors = ButtonDefaults.buttonColors(
                     containerColor = MaterialTheme.colorScheme.primary,
                     contentColor = MaterialTheme.colorScheme.onPrimary,
@@ -1683,11 +1733,94 @@ private fun MediaEpisodesBanner(
                         modifier = Modifier.size(18.dp),
                     )
                     Text(
-                        text = stringResource(R.string.watch_episodes),
+                        text = stringResource(R.string.start_watching),
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = FontWeight.Bold,
                     )
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun MediaActionButtons(
+    isAnime: Boolean,
+    isInLibrary: Boolean,
+    onToggleLibrary: () -> Unit,
+    onWatchClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        // Right button in RTL (Start Watching)
+        Button(
+            onClick = onWatchClick,
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PlayArrow,
+                    contentDescription = null,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = stringResource(R.string.start_watching),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+        }
+
+        // Left button in RTL (Add to Library)
+        Button(
+            onClick = onToggleLibrary,
+            modifier = Modifier
+                .weight(1f)
+                .height(48.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(
+                containerColor = MaterialTheme.colorScheme.primaryContainer,
+                contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+            ),
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp),
+            contentPadding = PaddingValues(horizontal = 12.dp),
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+            ) {
+                Icon(
+                    imageVector = if (isInLibrary) Icons.Default.Check else Icons.Default.Add,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp),
+                )
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = stringResource(if (isInLibrary) R.string.in_library else R.string.add_to_library),
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
             }
         }
     }

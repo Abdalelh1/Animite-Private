@@ -183,5 +183,8 @@
     <string name="view_all_episodes">View All Episodes</string>
     <string name="episodes_count_label">%1$d Episodes</string>
     <string name="available_to_watch">Available to stream</string>
+    <string name="in_library">In Library</string>
+    <string name="added_to_library">Added to library</string>
+    <string name="removed_from_library">Removed from library</string>
 </resources>
 

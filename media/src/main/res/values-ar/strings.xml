@@ -184,5 +184,8 @@
     <string name="view_all_episodes">عرض الحلقات</string>
     <string name="episodes_count_label">%1$d حلقة متوفرة</string>
     <string name="available_to_watch">متوفر للمشاهدة الآن</string>
+    <string name="in_library">في المكتبة</string>
+    <string name="added_to_library">تمت الإضافة إلى المكتبة</string>
+    <string name="removed_from_library">تمت الإزالة من المكتبة</string>
 </resources>
 
