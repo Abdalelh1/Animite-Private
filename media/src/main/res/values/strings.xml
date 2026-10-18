@@ -142,6 +142,11 @@
     <string name="no_playable_quality">No playable quality currently available</string>
     <string name="playback_failed">Playback failed</string>
     <string name="retry">Retry</string>
+    <string name="try_next_server">Try Next Server</string>
+    <string name="change_source_or_episode">Change Source / Episode</string>
+    <string name="stream_token_expired">The stream link has expired. Auto-renewing…</string>
+    <string name="stream_timeout_error">Connection to streaming server timed out.</string>
+    <string name="stream_unavailable_error">Streaming server is temporarily unavailable.</string>
     <string name="qualities_count">%1$d qualities</string>
     <string name="player_settings">Player Settings</string>
     <string name="cache_settings">Cache Settings</string>

@@ -143,6 +143,11 @@
     <string name="no_playable_quality">لا تتوفر جودة قابلة للتشغيل حاليًا</string>
     <string name="playback_failed">تعذر تشغيل الفيديو</string>
     <string name="retry">إعادة المحاولة</string>
+    <string name="try_next_server">تجربة سيرفر آخر</string>
+    <string name="change_source_or_episode">تغيير المصدر / الحلقة</string>
+    <string name="stream_token_expired">انتهت صلاحية رابط البث، جاري التجديد التلقائي…</string>
+    <string name="stream_timeout_error">انتهت مهلة الاتصال بسيرفر البث.</string>
+    <string name="stream_unavailable_error">سيرفر البث غير متاح مؤقتاً.</string>
     <string name="qualities_count">%1$d جودات</string>
     <string name="player_settings">إعدادات المشغّل</string>
     <string name="cache_settings">الذاكرة المؤقتة (Cache)</string>

@@ -1124,17 +1124,50 @@ fun VideoPlayerScreen(
                             color = Color.White,
                         )
                         Spacer(modifier = Modifier.height(6.dp))
+
+                        val friendlyErrorMessage = when {
+                            playerError == null -> ""
+                            playerError!!.contains("403") || playerError!!.contains("expired") || playerError!!.contains("token") ->
+                                stringResource(R.string.stream_token_expired)
+                            playerError!!.contains("timeout", ignoreCase = true) || playerError!!.contains("timed out", ignoreCase = true) ->
+                                stringResource(R.string.stream_timeout_error)
+                            playerError!!.contains("404") || playerError!!.contains("unavailable", ignoreCase = true) || playerError!!.contains("502") || playerError!!.contains("503") ->
+                                stringResource(R.string.stream_unavailable_error)
+                            else -> playerError!!
+                        }
+
                         Text(
-                            text = playerError ?: "",
+                            text = friendlyErrorMessage,
                             style = MaterialTheme.typography.bodySmall,
                             color = Color(0xFF94A3B8),
                             modifier = Modifier.padding(horizontal = 16.dp),
                         )
                         Spacer(modifier = Modifier.height(18.dp))
+
+                        val nextAlternativeServer = remember(currentServers, failedServerUrlsInEpisode, activeServer) {
+                            currentServers.firstOrNull { it.url !in failedServerUrlsInEpisode && it.url != activeServer.url }
+                        }
+
                         Row(
-                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
+                            if (nextAlternativeServer != null) {
+                                Button(
+                                    onClick = {
+                                        failedServerUrlsInEpisode.add(activeServer.url)
+                                        playerError = null
+                                        isBuffering = true
+                                        selectedQuality = nextAlternativeServer.quality
+                                        viewModel.prepareMedia(nextAlternativeServer, positionMs = currentPosition, playWhenReady = true)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                    shape = RoundedCornerShape(12.dp),
+                                ) {
+                                    Text(stringResource(R.string.try_next_server), color = Color.White, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
                             Button(
                                 onClick = {
                                     playerError = null
@@ -1146,20 +1179,25 @@ fun VideoPlayerScreen(
                                         viewModel.prepareMedia(activeServer, positionMs = currentPosition, playWhenReady = true)
                                     }
                                 },
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                colors = if (nextAlternativeServer != null) {
+                                    ButtonDefaults.outlinedButtonColors()
+                                } else {
+                                    ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                },
                                 shape = RoundedCornerShape(12.dp),
                             ) {
-                                Text(stringResource(R.string.retry), color = Color.White, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.retry), color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
+
                             OutlinedButton(
                                 onClick = {
                                     playerError = null
                                     showEpisodesSheet = true
                                 },
                                 shape = RoundedCornerShape(12.dp),
-                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)),
                             ) {
-                                Text("تغيير المصدر / الحلقة", color = Color.White, fontWeight = FontWeight.SemiBold)
+                                Text(stringResource(R.string.change_source_or_episode), color = Color.White, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }

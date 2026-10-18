@@ -128,14 +128,16 @@ object SmartStreamEngine {
         val allRawServers = responses.flatMap { it.second }.toMutableList()
         val participating = responses.filter { it.second.isNotEmpty() }.map { it.first }.distinct()
 
-        // 2.5 Extract direct playable video streams from supported third-party hosts
+        // 2.5 Extract direct playable video streams from supported third-party hosts with bounded timeout
         val embedServers = allRawServers.filter { !it.isDirectVideo && DirectStreamExtractor.canExtract(it.url) }
         for (embedServer in embedServers) {
             try {
-                val extracted = DirectStreamExtractor.extractDirectStreams(embedServer.url, referer = episode.url)
-                for (directServer in extracted) {
-                    if (directServer.isDirectVideo && allRawServers.none { it.url == directServer.url }) {
-                        allRawServers.add(0, directServer)
+                withTimeoutOrNull(6500L) {
+                    val extracted = DirectStreamExtractor.extractDirectStreams(embedServer.url, referer = episode.url)
+                    for (directServer in extracted) {
+                        if (directServer.isDirectVideo && allRawServers.none { it.url == directServer.url }) {
+                            allRawServers.add(0, directServer)
+                        }
                     }
                 }
             } catch (ee: Exception) {
@@ -270,6 +272,24 @@ object SmartStreamEngine {
             val className = current.javaClass.simpleName
             if (className.contains("InvalidResponseCodeException") &&
                 (msg.contains("403") || msg.contains("401") || msg.contains("410"))
+            ) {
+                return true
+            }
+            current = current.cause
+        }
+        return false
+    }
+
+    /**
+     * Inspects whether a playback error represents a socket or connection timeout.
+     */
+    fun isNetworkTimeoutError(error: Throwable?): Boolean {
+        var current = error
+        while (current != null) {
+            val msg = current.message?.lowercase(java.util.Locale.ROOT) ?: ""
+            if (msg.contains("timeout") || msg.contains("timed out") ||
+                current is java.net.SocketTimeoutException ||
+                current is java.net.ConnectException
             ) {
                 return true
             }
