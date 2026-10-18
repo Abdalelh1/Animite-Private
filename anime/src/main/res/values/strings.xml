@@ -5,4 +5,10 @@
     <string name="popular_this_season">Popular This Season</string>
     <string name="upcoming_next_season">Upcoming Next Season</string>
     <string name="all_time_popular">All Time Popular</string>
+    <string name="continue_watching">Continue Watching</string>
+    <string name="episode_short">Ep %1$s</string>
+    <string name="retry">Retry</string>
+    <string name="load_failed">Failed to load content</string>
+    <string name="tap_to_retry">Tap to retry</string>
+    <string name="no_results">No anime available</string>
 </resources>

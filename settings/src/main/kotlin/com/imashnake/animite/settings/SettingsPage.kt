@@ -68,6 +68,7 @@ import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -108,10 +109,13 @@ import com.imashnake.animite.core.ui.ext.horizontalOnly
 import com.imashnake.animite.core.ui.layout.TranslucentStatusBarLayout
 import com.imashnake.animite.core.ui.rememberDefaultPaddings
 import com.imashnake.animite.media.ext.res
+import com.imashnake.animite.media.source.AiSourceAssistant
+import com.imashnake.animite.media.source.SourceRepositoryManager
 import com.imashnake.animite.settings.ext.title
 import com.materialkolor.ktx.darken
 import kotlinx.collections.immutable.ImmutableList
 import kotlinx.collections.immutable.persistentListOf
+import kotlinx.coroutines.launch
 import kotlinx.serialization.Serializable
 
 private const val DISCORD_URL = "https://discord.gg/HEB7duYdqe"
@@ -886,6 +890,12 @@ fun SettingsPage(
                         }
                     }
 
+                    // ── مصادر التشغيل ──────────────────────────────────────────────────────
+                    SourcesSettingsSection(
+                        isDarkMode = isDarkMode,
+                        context = context,
+                    )
+
                     Column(verticalArrangement = Arrangement.spacedBy(LocalPaddings.current.medium)) {
                         Text(
                             text = stringResource(R.string.about),
@@ -1008,6 +1018,9 @@ fun SettingsPage(
         }
     }
 }
+
+
+
 
 @Composable
 private fun Items(

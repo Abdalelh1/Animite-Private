@@ -1,12 +1,11 @@
 package com.imashnake.animite.media.source
 
-import android.util.Base64
 import android.util.Log
 import java.net.URLEncoder
 
 class WitAnimeProvider : EpisodeSourceProvider {
     override val id: String = "witanime"
-    override val name: String = "WitAnime (عربي)"
+    override val name: String = "المصدر 3"
     override val language: String = "ar"
 
     private val baseUrl = "https://witanime.site"
@@ -15,7 +14,12 @@ class WitAnimeProvider : EpisodeSourceProvider {
     override suspend fun search(query: String): List<AnimeSearchResult> {
         val searchUrl = "$baseUrl/search?q=${URLEncoder.encode(query, "UTF-8")}"
         return try {
-            val doc = HttpHelper.getDocument(searchUrl)
+            val html = HttpHelper.getHtml(searchUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "WITANIME_SEARCH: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, searchUrl)
             val results = mutableListOf<AnimeSearchResult>()
 
             doc.select("a[href*=\"/anime/\"], .anime-card-container, .episodes-card, div.anime-item").forEach { item ->
@@ -49,7 +53,12 @@ class WitAnimeProvider : EpisodeSourceProvider {
 
     override suspend fun getEpisodes(animeUrl: String): List<AnimeEpisode> {
         return try {
-            val doc = HttpHelper.getDocument(animeUrl)
+            val html = HttpHelper.getHtml(animeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "WITANIME_EPISODES: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, animeUrl)
             val episodes = mutableListOf<AnimeEpisode>()
 
             val poster = doc.selectFirst(".anime-thumbnail img, .poster img, img")?.let { img ->
@@ -90,7 +99,12 @@ class WitAnimeProvider : EpisodeSourceProvider {
 
     override suspend fun getStreamServers(episodeUrl: String): List<AnimeStreamServer> {
         return try {
-            val doc = HttpHelper.getDocument(episodeUrl)
+            val html = HttpHelper.getHtml(episodeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "WITANIME_SERVERS: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, episodeUrl)
             val servers = mutableListOf<AnimeStreamServer>()
 
             // 1. Check server tab buttons with data-url
@@ -140,7 +154,7 @@ class WitAnimeProvider : EpisodeSourceProvider {
             if (servers.isEmpty()) {
                 servers.add(
                     AnimeStreamServer(
-                        name = "مشغل WitAnime (ويب)",
+                        name = "مشغل ويب",
                         url = episodeUrl,
                         isDirectVideo = false,
                         quality = "ويب",
@@ -161,7 +175,7 @@ class WitAnimeProvider : EpisodeSourceProvider {
             if (url.startsWith("http")) {
                 url
             } else {
-                val decoded = String(Base64.decode(url, Base64.DEFAULT), Charsets.UTF_8).trim()
+                val decoded = Base64Compat.decodeToString(url).trim()
                 if (decoded.startsWith("http")) decoded else url
             }
         } catch (_: Exception) {

@@ -32,6 +32,12 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.datetime.TimeZone
 import kotlinx.datetime.toLocalDateTime
+import android.content.Context
+import com.imashnake.animite.media.ContinueWatchingItem
+import com.imashnake.animite.media.EpisodeWatchManager
+import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import org.jetbrains.compose.resources.StringResource
 import javax.inject.Inject
 import kotlin.time.Clock
@@ -40,10 +46,27 @@ import kotlin.time.Duration.Companion.milliseconds
 @HiltViewModel
 @OptIn(ExperimentalCoroutinesApi::class)
 class AnimeViewModel @Inject constructor(
+    @ApplicationContext private val appContext: Context,
     private val mediaListRepository: AnilistMediaRepository,
     savedStateHandle: SavedStateHandle,
     preferencesRepository: PreferencesRepository
 ) : ViewModel() {
+
+    private val _continueWatching = MutableStateFlow<List<ContinueWatchingItem>>(emptyList())
+    val continueWatching = _continueWatching.asStateFlow()
+
+    init {
+        loadContinueWatching()
+    }
+
+    fun loadContinueWatching() {
+        _continueWatching.value = EpisodeWatchManager.getContinueWatchingItems(appContext)
+    }
+
+    fun removeContinueWatchingItem(animeId: Int, animeTitle: String = "") {
+        EpisodeWatchManager.removeContinueWatchingItem(appContext, animeId, animeTitle)
+        loadContinueWatching()
+    }
 
     private val now = savedStateHandle.getStateFlow(
         key = NOW,
@@ -192,6 +215,7 @@ class AnimeViewModel @Inject constructor(
 
     fun refresh(setIsRefreshing: (Boolean) -> Unit) = viewModelScope.launch {
         setIsRefreshing(true)
+        loadContinueWatching()
         useNetwork = true
         refreshTrigger.emit(Unit)
         delay(1500.milliseconds)

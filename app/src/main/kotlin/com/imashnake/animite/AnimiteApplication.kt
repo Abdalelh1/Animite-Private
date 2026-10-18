@@ -9,6 +9,11 @@ import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp
 class AnimiteApplication: Application(), SingletonImageLoader.Factory {
+    override fun onCreate() {
+        super.onCreate()
+        com.imashnake.animite.media.source.SourceRepositoryManager.initialize(this)
+    }
+
     override fun newImageLoader(context: PlatformContext): ImageLoader {
         return ImageLoader.Builder(this)
             .logger(DebugLogger())

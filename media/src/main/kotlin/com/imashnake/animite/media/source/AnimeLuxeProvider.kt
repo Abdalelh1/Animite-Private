@@ -6,16 +6,21 @@ import java.net.URLEncoder
 
 class AnimeLuxeProvider : EpisodeSourceProvider {
     override val id: String = "animeluxe"
-    override val name: String = "AnimeLuxe (عربي)"
+    override val name: String = "المصدر 4"
     override val language: String = "ar"
 
-    private val baseUrl = "https://vip.animeluxe.org"
+    private val baseUrl = "https://ww1.animeluxe.com"
     private val numberRegex = Regex("""(\d+(?:\.\d+)?)""")
 
     override suspend fun search(query: String): List<AnimeSearchResult> {
         val searchUrl = "$baseUrl/?s=${URLEncoder.encode(query, "UTF-8")}"
         return try {
-            val doc = HttpHelper.getDocument(searchUrl)
+            val html = HttpHelper.getHtml(searchUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "ANIMELUXE_SEARCH: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, searchUrl)
             val results = mutableListOf<AnimeSearchResult>()
 
             doc.select("article.signal-anime-card, article.signal-card").forEach { article ->
@@ -72,19 +77,24 @@ class AnimeLuxeProvider : EpisodeSourceProvider {
 
     override suspend fun getEpisodes(animeUrl: String): List<AnimeEpisode> {
         return try {
-            val doc = HttpHelper.getDocument(animeUrl)
+            val html = HttpHelper.getHtml(animeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "ANIMELUXE_EPISODES: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, animeUrl)
             val episodes = mutableListOf<AnimeEpisode>()
 
             doc.select("a[href*=\"/episodes/\"], a[href*=\"/episode/\"]").forEach { link ->
                 val href = link.attr("abs:href")
-                if (href.isEmpty() || episodes.any { it.url == href }) return@forEach
+                if (href.isEmpty() || href.trimEnd('/') == "$baseUrl/episodes" || href.trimEnd('/').endsWith("/episodes") || episodes.any { it.url == href }) return@forEach
 
                 val text = link.text().trim()
                 // Parse episode number from URL segment e.g. /episodes/...-الحلقة-1/ or /1/
                 val lastSegment = href.trimEnd('/').substringAfterLast('/')
                 val epNum = numberRegex.findAll(lastSegment).lastOrNull()?.value?.toFloatOrNull()
                     ?: numberRegex.findAll(text).lastOrNull()?.value?.toFloatOrNull()
-                    ?: (episodes.size + 1).toFloat()
+                    ?: return@forEach
 
                 val title = if (text.isNotEmpty() && !text.contains("http")) {
                     text
@@ -110,8 +120,12 @@ class AnimeLuxeProvider : EpisodeSourceProvider {
 
     override suspend fun getStreamServers(episodeUrl: String): List<AnimeStreamServer> {
         return try {
-            Log.e("ANIMITE_DIAG", "ANIMELUXE_GET_SERVERS: start $episodeUrl")
+            Log.d("ANIMITE_DIAG", "ANIMELUXE_GET_SERVERS: start $episodeUrl")
             val html = HttpHelper.getHtml(episodeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "ANIMELUXE_SERVERS: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
             val servers = mutableListOf<AnimeStreamServer>()
 
             // 1. Extract episode ID from data-episode-id="(\d+)"
@@ -125,7 +139,7 @@ class AnimeLuxeProvider : EpisodeSourceProvider {
                 .distinct()
                 .toList()
 
-            Log.e("ANIMITE_DIAG", "ANIMELUXE_FOUND: epId=$episodeId, sources=${sourceIndices.size}")
+            Log.d("ANIMITE_DIAG", "ANIMELUXE_FOUND: epId=$episodeId, sources=${sourceIndices.size}")
 
             if (!episodeId.isNullOrEmpty() && sourceIndices.isNotEmpty()) {
                 for (idx in sourceIndices) {
@@ -133,47 +147,53 @@ class AnimeLuxeProvider : EpisodeSourceProvider {
                         val resolveUrl = "$baseUrl/wp-json/mirai-signal/v1/episodes/$episodeId/player/$idx/resolve"
                         val responseBody = HttpHelper.postJson(resolveUrl, "{}", referer = episodeUrl)
                         if (responseBody.isNotEmpty()) {
-                            val json = JSONObject(responseBody)
-                            val provider = json.optString("provider", "Server $idx")
-                            val streams = json.optJSONArray("streams")
+                            try {
+                                val element = kotlinx.serialization.json.Json.parseToJsonElement(responseBody)
+                                val jsonObj = element as? kotlinx.serialization.json.JsonObject
+                                val provider = (jsonObj?.get("provider") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "سيرفر $idx"
+                                val streams = jsonObj?.get("streams") as? kotlinx.serialization.json.JsonArray
 
-                            // Check direct video streams
-                            if (streams != null && streams.length() > 0) {
-                                for (i in 0 until streams.length()) {
-                                    val streamObj = streams.getJSONObject(i)
-                                    val streamUrl = streamObj.optString("url")
-                                    val label = streamObj.optString("label", "HD")
-                                    if (streamUrl.isNotEmpty() && !servers.any { it.url == streamUrl }) {
-                                        servers.add(
-                                            AnimeStreamServer(
-                                                name = "AnimeLuxe ($provider $label)",
-                                                url = streamUrl,
-                                                isDirectVideo = true,
-                                                quality = label,
-                                                linkType = StreamLinkType.DIRECT_VIDEO,
-                                                headers = mapOf(
-                                                    "User-Agent" to HttpHelper.USER_AGENT,
-                                                    "Referer" to episodeUrl,
-                                                ),
+                                // Check direct video streams
+                                if (streams != null && streams.isNotEmpty()) {
+                                    for (item in streams) {
+                                        val streamObj = item as? kotlinx.serialization.json.JsonObject ?: continue
+                                        val streamUrl = (streamObj["url"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+                                        val label = (streamObj["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "HD"
+                                        if (streamUrl.isNotEmpty() && !servers.any { it.url == streamUrl }) {
+                                            servers.add(
+                                                AnimeStreamServer(
+                                                    name = "سيرفر مباشر ($label)",
+                                                    url = streamUrl,
+                                                    isDirectVideo = true,
+                                                    quality = label,
+                                                    linkType = StreamLinkType.DIRECT_VIDEO,
+                                                    headers = mapOf(
+                                                        "User-Agent" to HttpHelper.USER_AGENT,
+                                                        "Referer" to episodeUrl,
+                                                    ),
+                                                )
                                             )
-                                        )
+                                        }
                                     }
                                 }
-                            }
 
-                            // Check fallback iframe/embed
-                            val fallbackObj = json.optJSONObject("fallback")
-                            val fallbackUrl = fallbackObj?.optString("url") ?: ""
-                            if (fallbackUrl.isNotEmpty() && !servers.any { it.url == fallbackUrl }) {
-                                servers.add(
-                                    AnimeStreamServer(
-                                        name = "AnimeLuxe ($provider ويب)",
-                                        url = fallbackUrl,
-                                        isDirectVideo = false,
-                                        quality = "ويب",
-                                        linkType = StreamLinkType.WEB_PAGE,
+                                // Check fallback iframe/embed
+                                val fallbackObj = jsonObj?.get("fallback") as? kotlinx.serialization.json.JsonObject
+                                val fallbackUrl = (fallbackObj?.get("url") as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+                                if (fallbackUrl.isNotEmpty() && !servers.any { it.url == fallbackUrl }) {
+                                    val isDirect = fallbackUrl.endsWith(".mp4") || fallbackUrl.contains(".m3u8")
+                                    servers.add(
+                                        AnimeStreamServer(
+                                            name = "مشغل ويب ($provider)",
+                                            url = fallbackUrl,
+                                            isDirectVideo = isDirect,
+                                            quality = if (isDirect) "HD" else "ويب",
+                                            linkType = if (isDirect) StreamLinkType.DIRECT_VIDEO else StreamLinkType.WEB_PAGE,
+                                        )
                                     )
-                                )
+                                }
+                            } catch (je: Exception) {
+                                Log.e("ANIMITE_DIAG", "ANIMELUXE_JSON_PARSE_ERROR: ${je.message}")
                             }
                         }
                     } catch (se: Exception) {
@@ -186,7 +206,7 @@ class AnimeLuxeProvider : EpisodeSourceProvider {
             if (servers.isEmpty()) {
                 servers.add(
                     AnimeStreamServer(
-                        name = "مشغل AnimeLuxe (ويب)",
+                        name = "مشغل ويب",
                         url = episodeUrl,
                         isDirectVideo = false,
                     )

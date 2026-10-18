@@ -5,4 +5,10 @@
     <string name="popular_this_season">الأكثر شعبية هذا الموسم</string>
     <string name="upcoming_next_season">القادم في الموسم المقبل</string>
     <string name="all_time_popular">الأكثر شعبية على الإطلاق</string>
+    <string name="continue_watching">متابعة المشاهدة</string>
+    <string name="episode_short">حلقة %1$s</string>
+    <string name="retry">إعادة المحاولة</string>
+    <string name="load_failed">تعذر تحميل المحتوى</string>
+    <string name="tap_to_retry">اضغط لإعادة المحاولة</string>
+    <string name="no_results">لا توجد أعمال متاحة</string>
 </resources>

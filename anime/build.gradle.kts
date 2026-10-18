@@ -60,6 +60,10 @@ dependencies {
     // Kotlin
     implementation(libs.kotlinx.datetime)
 
+    // Coil & Icons
+    implementation(libs.bundles.coil)
+    implementation(libs.compose.material.icons.extended)
+
     implementation(libs.reorderable)
 }
 

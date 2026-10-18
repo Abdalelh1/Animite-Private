@@ -1,5 +1,6 @@
 package com.imashnake.animite.core.ui.component
 
+import androidx.compose.animation.core.animateFloat
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -32,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -345,20 +347,31 @@ internal fun MediaSmall(
                 modifier = Modifier.fillMaxSize()
             )
 
-            if (tag != null)
+            // Subtle gradient scrim for elevated contrast
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        androidx.compose.ui.graphics.Brush.verticalGradient(
+                            colors = listOf(
+                                androidx.compose.ui.graphics.Color.Transparent,
+                                androidx.compose.ui.graphics.Color.Black.copy(alpha = 0.35f)
+                            ),
+                            startY = 0f,
+                            endY = Float.POSITIVE_INFINITY
+                        )
+                    )
+            )
+
+            if (tag != null) {
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .graphicsLayer {
-                            translationY = 7f
-                        }
                         .fillMaxWidth()
                         .align(Alignment.BottomCenter)
-                        .background(color = MaterialTheme.colorScheme.background.copy(alpha = 0.8f))
+                        .background(color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f))
                         .padding(vertical = LocalPaddings.current.tiny)
-                        // Because the cropping is being weird
-                        .padding(bottom = LocalPaddings.current.tiny)
-                        .padding(horizontal = LocalPaddings.current.medium)
+                        .padding(horizontal = LocalPaddings.current.small)
                 ) {
                     if (tagMinLines > 1) {
                         Text(
@@ -366,21 +379,23 @@ internal fun MediaSmall(
                             fontSize = 10.sp,
                             maxLines = tagMinLines,
                             minLines = tagMinLines,
-                            lineHeight = 16.sp,
+                            lineHeight = 15.sp,
                         )
                     }
                     Text(
                         text = tag,
-                        color = MaterialTheme.colorScheme.onBackground,
-                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        fontSize = 11.sp,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.SemiBold,
                         textAlign = TextAlign.Center,
                         maxLines = tagMinLines,
-                        lineHeight = 16.sp,
+                        lineHeight = 15.sp,
                     )
                 }
+            }
         }
 
-        if (label != null)
+        if (label != null) {
             Box {
                 Text(
                     text = " \n ",
@@ -394,21 +409,21 @@ internal fun MediaSmall(
                     Modifier
                         .align(Alignment.Center)
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Text(
                         text = label,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.onSurface,
                         style = MaterialTheme.typography.labelLarge,
+                        fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                         maxLines = 2,
-                        // TODO: Add a custom overflow indicator:
-                        //  https://proandroiddev.com/detect-text-overflow-in-jetpack-compose-56c0b83da5a5.
-                        overflow = TextOverflow.Visible,
+                        overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
                         modifier = textModifier.align(Alignment.Center),
                     )
                 }
             }
+        }
     }
 }
 
@@ -419,6 +434,17 @@ fun LoadingMediaSmall(
     modifier: Modifier = Modifier,
     shouldShowLabel: Boolean = true,
 ) {
+    val transition = androidx.compose.animation.core.rememberInfiniteTransition(label = "shimmer")
+    val shimmerAlpha by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.65f,
+        animationSpec = androidx.compose.animation.core.infiniteRepeatable(
+            animation = androidx.compose.animation.core.tween(850, easing = androidx.compose.animation.core.LinearEasing),
+            repeatMode = androidx.compose.animation.core.RepeatMode.Reverse
+        ),
+        label = "shimmer_alpha"
+    )
+
     Card(
         shape = RoundedCornerShape(18.dp),
         modifier = modifier.width(cardWidth),
@@ -428,14 +454,25 @@ fun LoadingMediaSmall(
                 .height(imageHeight)
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(18.dp))
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = shimmerAlpha))
         )
 
-        if (shouldShowLabel)
-            Text(
-                text = " \n ",
-                style = MaterialTheme.typography.labelLarge,
-                modifier = Modifier.padding(vertical = 10.dp)
-            )
+        if (shouldShowLabel) {
+            Box(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+                    .fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .height(16.dp)
+                        .fillMaxWidth(0.8f)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = shimmerAlpha))
+                        .align(Alignment.Center)
+                )
+            }
+        }
     }
 }
 

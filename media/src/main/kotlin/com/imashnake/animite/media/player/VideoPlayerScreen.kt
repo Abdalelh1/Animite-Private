@@ -3,16 +3,13 @@ package com.imashnake.animite.media.player
 import android.app.Activity
 import android.app.PictureInPictureParams
 import android.content.Context
-import android.content.Intent
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.media.AudioManager
 import android.os.Build
-import android.provider.Settings
 import android.util.Rational
 import android.view.ViewGroup
 import android.view.WindowManager
-import android.widget.Toast
 import androidx.annotation.OptIn
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -21,10 +18,9 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -32,36 +28,32 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.Close
-import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Forward10
+import androidx.compose.material.icons.rounded.LockOpen
+import androidx.compose.material.icons.rounded.Replay10
+import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Warning
+import android.content.res.Configuration
+import androidx.activity.compose.BackHandler
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
-import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -72,24 +64,22 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.window.Dialog
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
@@ -102,26 +92,24 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
-import com.imashnake.animite.core.ui.LocalPaddings
+import com.imashnake.animite.media.EpisodeWatchManager
 import com.imashnake.animite.media.R
-import com.imashnake.animite.media.player.cache.MediaCacheManager
 import com.imashnake.animite.media.source.AnimeEpisode
 import com.imashnake.animite.media.source.AnimeStreamServer
 import com.imashnake.animite.media.source.EpisodeJsonCache
 import com.imashnake.animite.media.source.EpisodeSessionRepository
+import com.imashnake.animite.media.source.QualityRank
+import com.imashnake.animite.media.source.SkipInterval
+import com.imashnake.animite.media.source.SmartStreamDiagnostics
+import com.imashnake.animite.media.source.SmartStreamEngine
 import com.imashnake.animite.media.source.SourceJsonParser
+import com.imashnake.animite.media.source.SourceLinkExtractor
 import com.imashnake.animite.media.source.StreamLinkType
+import com.imashnake.animite.media.source.UnifiedQualityOption
 import com.imashnake.animite.navigation.VideoPlayerRoute
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
-import java.util.Locale
-
-private data class EpisodeUiModel(
-    val number: String,
-    val title: String,
-    val url: String,
-    val durationText: String = "24:00",
-    val thumbnail: String? = null,
-)
+import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class, ExperimentalMaterial3Api::class)
 @Composable
@@ -134,11 +122,15 @@ fun VideoPlayerScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val activity = context as? Activity
+    val coroutineScope = rememberCoroutineScope()
 
     val exoPlayer = remember { viewModel.getOrCreatePlayer() }
 
-    // Parse direct servers from repository or route JSON
-    val parsedDirectServers = remember(route.serversJson, route.initialUrl) {
+    val initialRouteUrl = remember { EpisodeSessionRepository.getActiveInitialUrl().ifEmpty { route.initialUrl } }
+    val initialRouteQuality = remember { EpisodeSessionRepository.getActiveInitialQuality().ifEmpty { route.initialQuality } }
+
+    // Parse direct servers from session repository or route JSON
+    val parsedDirectServers = remember(route.serversJson, initialRouteUrl) {
         val sessionServers = EpisodeSessionRepository.getActiveServers()
         val serversList = if (sessionServers.isNotEmpty()) {
             sessionServers
@@ -147,42 +139,65 @@ fun VideoPlayerScreen(
         }
 
         val directList = serversList.filter {
-            it.url.isNotEmpty() && it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
+            it.url.isNotEmpty() && (it.isDirectVideo || it.linkType == StreamLinkType.DIRECT_VIDEO)
         }.toMutableList()
 
-        if (directList.isEmpty() && route.initialUrl.isNotEmpty()) {
+        if (directList.isEmpty() && initialRouteUrl.isNotEmpty()) {
             directList.add(
                 AnimeStreamServer(
-                    name = route.initialQuality.ifEmpty { "HD" },
-                    url = route.initialUrl,
+                    name = initialRouteQuality.ifEmpty { "HD" },
+                    url = initialRouteUrl,
                     isDirectVideo = true,
-                    quality = route.initialQuality.ifEmpty { "HD" },
+                    quality = initialRouteQuality.ifEmpty { "HD" },
                     linkType = StreamLinkType.DIRECT_VIDEO,
                 )
             )
         }
 
-        directList.distinctBy { it.quality }
+        directList.distinctBy { it.url }
     }
 
     var currentServers by remember { mutableStateOf(parsedDirectServers) }
 
     var selectedQuality by remember {
-        mutableStateOf(route.initialQuality.ifEmpty { currentServers.firstOrNull()?.quality ?: "HD" })
+        mutableStateOf(initialRouteQuality.ifEmpty { currentServers.firstOrNull()?.quality ?: "HD" })
     }
 
     val activeServer = remember(selectedQuality, currentServers) {
         currentServers.firstOrNull { it.quality == selectedQuality }
             ?: currentServers.firstOrNull()
             ?: AnimeStreamServer(
-                name = route.initialQuality.ifEmpty { "HD" },
-                url = route.initialUrl,
+                name = initialRouteQuality.ifEmpty { "HD" },
+                url = initialRouteUrl,
                 isDirectVideo = true,
-                quality = route.initialQuality.ifEmpty { "HD" },
+                quality = initialRouteQuality.ifEmpty { "HD" },
             )
     }
 
-    // Parse Episodes list from route
+    val aggregatedResult = remember { EpisodeSessionRepository.getActivePlaybackResult() }
+    val qualityOptions = remember(currentServers, aggregatedResult) {
+        if (aggregatedResult != null && aggregatedResult.qualityOptions.isNotEmpty()) {
+            aggregatedResult.qualityOptions
+        } else {
+            val map = mutableMapOf<QualityRank, MutableList<AnimeStreamServer>>()
+            currentServers.forEach { server ->
+                val rank = SourceLinkExtractor.classifyQuality(server)
+                map.getOrPut(rank) { mutableListOf() }.add(server)
+            }
+            map.map { (rank, sList) ->
+                val primary = sList.first()
+                val fallbacks = if (sList.size > 1) sList.subList(1, sList.size) else emptyList()
+                UnifiedQualityOption(
+                    quality = rank,
+                    primaryServer = primary.copy(quality = rank.canonicalName),
+                    fallbackServers = fallbacks.map { it.copy(quality = rank.canonicalName) },
+                    mediaType = SourceLinkExtractor.detectMediaType(primary.url),
+                )
+            }.sortedBy { it.quality.height }
+        }
+    }
+
+    // Parse Episodes list
     var activeEpisodeNumber by remember {
         mutableStateOf(route.episodeNumber.ifEmpty { "1" })
     }
@@ -222,7 +237,7 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Playback states
+    // Playback state
     var isPlaying by remember { mutableStateOf(false) }
     var isBuffering by remember { mutableStateOf(true) }
     var currentPosition by remember { mutableLongStateOf(0L) }
@@ -230,27 +245,54 @@ fun VideoPlayerScreen(
     var duration by remember { mutableLongStateOf(0L) }
     var playerError by remember { mutableStateOf<String?>(null) }
     var showControls by remember { mutableStateOf(true) }
-    var isLandscape by remember { mutableStateOf(true) }
+    val failedServerUrlsInEpisode = remember(activeEpisodeNumber) { mutableSetOf<String>() }
+    var stallJob by remember { mutableStateOf<Job?>(null) }
+
+    val configuration = LocalConfiguration.current
+    val isDeviceInLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+    var isLandscape by remember { mutableStateOf(isDeviceInLandscape) }
+
+    LaunchedEffect(isDeviceInLandscape) {
+        isLandscape = isDeviceInLandscape
+        if (activity != null) {
+            val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            if (isDeviceInLandscape) {
+                controller.hide(WindowInsetsCompat.Type.systemBars())
+                controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            } else {
+                controller.show(WindowInsetsCompat.Type.systemBars())
+            }
+        }
+    }
+
+    val handleBack = {
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
+        viewModel.releasePlayer()
+        onBack()
+    }
+
+    BackHandler {
+        if (isLandscape && activity?.requestedOrientation == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
+            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            isLandscape = false
+            val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+            controller.show(WindowInsetsCompat.Type.systemBars())
+        } else {
+            handleBack()
+        }
+    }
+
     var isMuted by remember { mutableStateOf(false) }
 
-    // Slider scrubbing state
-    var isUserDraggingSlider by remember { mutableStateOf(false) }
-    var sliderPosition by remember { mutableFloatStateOf(0f) }
+    // Dialog sheets
+    var showQualitySheet by remember { mutableStateOf(false) }
+    var showAudioSheet by remember { mutableStateOf(false) }
+    var showSubtitleSheet by remember { mutableStateOf(false) }
+    var showSpeedSheet by remember { mutableStateOf(false) }
+    var showEpisodesSheet by remember { mutableStateOf(false) }
+    var showMoreSheet by remember { mutableStateOf(false) }
 
-    // Dialogs & Drawer overlays
-    var showEpisodeDrawer by remember { mutableStateOf(false) }
-    var showSpeedDialog by remember { mutableStateOf(false) }
-    var showTimerDialog by remember { mutableStateOf(false) }
-    var showAudioDialog by remember { mutableStateOf(false) }
-    var showSubtitlesDialog by remember { mutableStateOf(false) }
-    var showCastDialog by remember { mutableStateOf(false) }
-    var showMoreDialog by remember { mutableStateOf(false) }
-    var showQualityDialog by remember { mutableStateOf(false) }
-
-    // Aspect ratio HUD
-    var aspectRatioToastText by remember { mutableStateOf<String?>(null) }
-
-    // Gestures HUD feedback
+    // Gestures HUD
     var showVolumeHud by remember { mutableStateOf(false) }
     var volumePercent by remember { mutableIntStateOf(50) }
     var volumeHudKey by remember { mutableIntStateOf(0) }
@@ -265,22 +307,61 @@ fun VideoPlayerScreen(
     var showRightSeekFeedback by remember { mutableStateOf(false) }
     var rightSeekKey by remember { mutableIntStateOf(0) }
 
+    var isFastForwarding2x by remember { mutableStateOf(false) }
+    var speedBeforeFastForward by remember { mutableFloatStateOf(1.0f) }
+
     var showLockFloatingUnlock by remember { mutableStateOf(false) }
     var lockFloatingKey by remember { mutableIntStateOf(0) }
 
     // ViewModel states
-    val cacheSizeBytes by viewModel.cacheSizeBytes.collectAsState()
-    val cacheLimitBytes by viewModel.cacheLimitBytes.collectAsState()
     val playbackSpeed by viewModel.playbackSpeed.collectAsState()
     val resizeMode by viewModel.resizeMode.collectAsState()
     val subtitlesEnabled by viewModel.subtitlesEnabled.collectAsState()
     val subtitleTracks by viewModel.subtitleTracks.collectAsState()
     val audioTracks by viewModel.audioTracks.collectAsState()
+    val isAdaptiveAuto by viewModel.isVideoAdaptiveAuto.collectAsState()
+    val isAutoQualityMode by viewModel.isAutoQualityMode.collectAsState()
+    val effectiveQuality by viewModel.effectiveQuality.collectAsState()
+    val skipIntervals by viewModel.skipIntervals.collectAsState()
+    val isSkipIntroEnabled by viewModel.isSkipIntroEnabled.collectAsState()
     val isScreenLocked by viewModel.isScreenLocked.collectAsState()
     val sleepTimerMinutes by viewModel.sleepTimerMinutes.collectAsState()
-    val sleepTimerSecondsLeft by viewModel.sleepTimerSecondsLeft.collectAsState()
 
-    // Helper to switch to episode with fallback
+    var hasSkippedCurrentInterval by remember { mutableStateOf(false) }
+
+    var customIntroInterval by remember(route.animeTitle) {
+        mutableStateOf(EpisodeWatchManager.getCustomIntro(context, route.animeTitle))
+    }
+
+    // Reset skipped flag when episode changes
+    LaunchedEffect(activeEpisodeNumber) {
+        hasSkippedCurrentInterval = false
+    }
+
+    // Skip Intro / Outro active detection
+    val activeSkipInterval = remember(skipIntervals, currentPosition, isSkipIntroEnabled, hasSkippedCurrentInterval) {
+        if (!isSkipIntroEnabled || hasSkippedCurrentInterval) null
+        else skipIntervals.firstOrNull { interval ->
+            currentPosition in interval.startTimeMs..interval.endTimeMs
+        }
+    }
+
+    // Reset hasSkippedCurrentInterval when leaving interval
+    LaunchedEffect(currentPosition, skipIntervals) {
+        val inAnyInterval = skipIntervals.any { currentPosition in it.startTimeMs..it.endTimeMs }
+        if (!inAnyInterval && hasSkippedCurrentInterval) {
+            hasSkippedCurrentInterval = false
+        }
+    }
+
+    // Fetch AniSkip intervals with custom intro fallback
+    LaunchedEffect(activeEpisodeNumber, route.animeTitle) {
+        val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+        val customIntro = EpisodeWatchManager.getCustomIntro(context, route.animeTitle)
+        viewModel.loadSkipIntervals(listOf(route.animeTitle), epNum, customIntro)
+    }
+
+    // Helper functions
     fun switchToEpisode(item: EpisodeUiModel) {
         activeEpisodeNumber = item.number
         isBuffering = true
@@ -290,6 +371,10 @@ fun VideoPlayerScreen(
             val nStr = if (it.number % 1.0f == 0.0f) it.number.toInt().toString() else it.number.toString()
             nStr == item.number
         } ?: AnimeEpisode(number = item.number.toFloatOrNull() ?: 1f, url = item.url)
+
+        if (fullEp.skipIntervals.isNotEmpty()) {
+            viewModel.setSkipIntervals(fullEp.skipIntervals)
+        }
 
         viewModel.loadEpisodeStreamWithFallback(
             episode = fullEp,
@@ -343,9 +428,52 @@ fun VideoPlayerScreen(
         val listener = object : Player.Listener {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 isBuffering = playbackState == Player.STATE_BUFFERING
+                if (playbackState == Player.STATE_BUFFERING) {
+                    viewModel.recordPlaybackRebuffer()
+                    stallJob?.cancel()
+                    stallJob = coroutineScope.launch {
+                        delay(8000L)
+                        if (isBuffering && isPlaying) {
+                            android.util.Log.w("ANIMITE_PLAYER", "Buffering stalled >8s on ${activeServer.url}. Triggering auto failover.")
+                            val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+                            SmartStreamDiagnostics.addFailoverEvent(epNum, "Buffering stalled >8s, switching to alternative stream")
+                            failedServerUrlsInEpisode.add(activeServer.url)
+
+                            val currentRank = SourceLinkExtractor.classifyQuality(activeServer)
+                            val currentOption = qualityOptions.firstOrNull { it.quality.height == currentRank.height }
+                            val fallbackServer = currentOption?.fallbackServers?.firstOrNull { it.url !in failedServerUrlsInEpisode }
+                            if (fallbackServer != null) {
+                                viewModel.prepareMedia(fallbackServer, positionMs = currentPosition, playWhenReady = true)
+                                return@launch
+                            }
+
+                            val otherOptions = qualityOptions.filter { it.quality.height != currentRank.height }
+                            val nearest = otherOptions
+                                .mapNotNull { opt ->
+                                    val valid = if (opt.primaryServer.url !in failedServerUrlsInEpisode) opt.primaryServer
+                                    else opt.fallbackServers.firstOrNull { it.url !in failedServerUrlsInEpisode }
+                                    if (valid != null) Pair(opt, valid) else null
+                                }
+                                .minByOrNull { kotlin.math.abs(it.first.quality.height - currentRank.height) }
+
+                            if (nearest != null) {
+                                selectedQuality = nearest.first.quality.canonicalName
+                                viewModel.prepareMedia(nearest.second, positionMs = currentPosition, playWhenReady = true)
+                            }
+                        }
+                    }
+                }
                 duration = if (exoPlayer.duration > 0) exoPlayer.duration else 0L
                 bufferedPosition = exoPlayer.bufferedPosition
+                if (playbackState == Player.STATE_READY) {
+                    stallJob?.cancel()
+                    stallJob = null
+                    playerError = null
+                    SmartStreamEngine.reportStreamSuccess(activeServer)
+                }
                 if (playbackState == Player.STATE_ENDED) {
+                    stallJob?.cancel()
+                    stallJob = null
                     showControls = true
                     if (sleepTimerMinutes == -1) {
                         exoPlayer.pause()
@@ -359,75 +487,139 @@ fun VideoPlayerScreen(
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                val otherServers = currentServers.filter { it.url != activeServer.url }
-                if (otherServers.isNotEmpty()) {
-                    currentServers = otherServers
-                    val next = otherServers.first()
-                    selectedQuality = next.quality
-                    viewModel.prepareMedia(next, positionMs = currentPosition, playWhenReady = true)
+                val errorMsg = error.localizedMessage ?: "Unknown stream error"
+                android.util.Log.e("ANIMITE_PLAYER", "Stream error on ${activeServer.url}: $errorMsg")
+                val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+                SmartStreamEngine.reportStreamFailure(epNum, activeServer, errorMsg)
+
+                // 0. Immediate Token Expiry Renewal: 401, 403, 410 or invalid signed tokens
+                if (SmartStreamEngine.isTokenExpiredError(error)) {
+                    android.util.Log.w("ANIMITE_PLAYER", "Token expired (401/403/410) on ${activeServer.url}. Triggering silent renewal.")
+                    SmartStreamDiagnostics.addFailoverEvent(epNum, "Token expired (401/403/410) - triggering silent renewal")
+                    val fullEp = EpisodeSessionRepository.getActiveEpisodes().firstOrNull {
+                        val nStr = if (it.number % 1.0f == 0.0f) it.number.toInt().toString() else it.number.toString()
+                        nStr == activeEpisodeNumber
+                    }
+                    if (fullEp != null) {
+                        isBuffering = true
+                        viewModel.reExtractOrFallback(
+                            episode = fullEp,
+                            onSuccess = { newServers, chosen ->
+                                currentServers = newServers
+                                selectedQuality = chosen.quality
+                                viewModel.prepareMedia(chosen, positionMs = currentPosition, playWhenReady = true)
+                                playerError = null
+                            },
+                            onError = { renewErr ->
+                                playerError = renewErr
+                                isBuffering = false
+                            }
+                        )
+                        return
+                    }
+                }
+
+                failedServerUrlsInEpisode.add(activeServer.url)
+
+                // 1. Failover to backup server of the SAME quality (try all available servers of this quality first)
+                val currentRank = SourceLinkExtractor.classifyQuality(activeServer)
+                val currentOption = qualityOptions.firstOrNull { it.quality.height == currentRank.height }
+                val fallbackServer = currentOption?.fallbackServers?.firstOrNull { it.url !in failedServerUrlsInEpisode }
+
+                if (fallbackServer != null) {
+                    SmartStreamDiagnostics.addFailoverEvent(epNum, "Failover to backup server for ${currentOption.quality.canonicalName}")
+                    viewModel.prepareMedia(fallbackServer, positionMs = currentPosition, playWhenReady = true)
                     return
                 }
 
-                // If all current servers fail, attempt fallback resolution across other sources
+                // 2. Failover to nearest adjacent quality (only after all servers of current quality are exhausted)
+                val otherOptions = qualityOptions.filter { it.quality.height != currentRank.height }
+                val nearestOption = otherOptions
+                    .mapNotNull { opt ->
+                        val validServer = if (opt.primaryServer.url !in failedServerUrlsInEpisode) opt.primaryServer
+                                          else opt.fallbackServers.firstOrNull { it.url !in failedServerUrlsInEpisode }
+                        if (validServer != null) Pair(opt, validServer) else null
+                    }
+                    .minByOrNull { kotlin.math.abs(it.first.quality.height - currentRank.height) }
+
+                if (nearestOption != null) {
+                    SmartStreamDiagnostics.addFailoverEvent(epNum, "Failover to nearest quality ${nearestOption.first.quality.canonicalName}")
+                    selectedQuality = nearestOption.first.quality.canonicalName
+                    viewModel.prepareMedia(nearestOption.second, positionMs = currentPosition, playWhenReady = true)
+                    return
+                }
+
+                // 3. Fallback resolution across providers
                 val fullEp = EpisodeSessionRepository.getActiveEpisodes().firstOrNull {
                     val nStr = if (it.number % 1.0f == 0.0f) it.number.toInt().toString() else it.number.toString()
                     nStr == activeEpisodeNumber
                 }
 
-                if (fullEp != null && fullEp.sources.size > 1) {
+                if (fullEp != null) {
                     isBuffering = true
-                    viewModel.loadEpisodeStreamWithFallback(
+                    SmartStreamDiagnostics.addFailoverEvent(epNum, "Silent re-extraction across providers")
+                    viewModel.reExtractOrFallback(
                         episode = fullEp,
-                        failedProviderIds = setOf(route.providerId),
-                        onSuccess = { newServers, _ ->
-                            val direct = newServers.filter { it.isDirectVideo && it.url.isNotEmpty() }
-                            val streamList = if (direct.isNotEmpty()) direct else newServers
-                            if (streamList.isNotEmpty()) {
-                                currentServers = streamList
-                                val chosen = streamList.first()
-                                selectedQuality = chosen.quality
-                                viewModel.prepareMedia(chosen, positionMs = currentPosition, playWhenReady = true)
-                                playerError = null
-                            } else {
-                                playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو"
-                                isBuffering = false
-                            }
+                        onSuccess = { newServers, chosen ->
+                            currentServers = newServers
+                            selectedQuality = chosen.quality
+                            viewModel.prepareMedia(chosen, positionMs = currentPosition, playWhenReady = true)
+                            playerError = null
                         },
                         onError = {
-                            playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو، تحقق من الرابط أو الاتصال"
-                            isBuffering = false
+                            viewModel.loadEpisodeStreamWithFallback(
+                                episode = fullEp,
+                                failedProviderIds = setOf(route.providerId),
+                                onSuccess = { newServers, _ ->
+                                    val direct = newServers.filter { it.isDirectVideo && it.url.isNotEmpty() }
+                                    val streamList = if (direct.isNotEmpty()) direct else newServers
+                                    if (streamList.isNotEmpty()) {
+                                        currentServers = streamList
+                                        val chosen = streamList.firstOrNull { it.quality == selectedQuality } ?: streamList.first()
+                                        viewModel.prepareMedia(chosen, positionMs = currentPosition, playWhenReady = true)
+                                        playerError = null
+                                    }
+                                },
+                                onError = { finalErr ->
+                                    playerError = finalErr
+                                    isBuffering = false
+                                }
+                            )
                         }
                     )
                 } else {
-                    playerError = error.localizedMessage ?: "تعذر تشغيل الفيديو، تحقق من الرابط أو الاتصال"
+                    playerError = errorMsg
                     isBuffering = false
                 }
             }
         }
-        exoPlayer.addListener(listener)
 
+        exoPlayer.addListener(listener)
         onDispose {
             exoPlayer.removeListener(listener)
         }
     }
 
-    // Activity window setup, Landscape by default, Fullscreen insets & lifecycle
-    DisposableEffect(lifecycleOwner, activity) {
+    // Lifecycle Observer and orientation management
+    DisposableEffect(lifecycleOwner) {
         val window = activity?.window
         window?.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
 
-        if (activity != null) {
-            activity.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
-            isLandscape = true
-            val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
-            controller.hide(WindowInsetsCompat.Type.systemBars())
+        activity?.requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
             controller.systemBarsBehavior = WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+            controller.hide(WindowInsetsCompat.Type.systemBars())
         }
 
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
-                Lifecycle.Event.ON_PAUSE -> {
-                    exoPlayer.pause()
+                Lifecycle.Event.ON_PAUSE -> exoPlayer.pause()
+                Lifecycle.Event.ON_RESUME -> {
+                    if (window != null) {
+                        val controller = WindowCompat.getInsetsController(window, window.decorView)
+                        controller.hide(WindowInsetsCompat.Type.systemBars())
+                    }
                 }
                 else -> {}
             }
@@ -442,39 +634,61 @@ fun VideoPlayerScreen(
                 val controller = WindowCompat.getInsetsController(window, window.decorView)
                 controller.show(WindowInsetsCompat.Type.systemBars())
             }
-            viewModel.releasePlayer()
         }
     }
 
-    // Prepare active server media
+    // Prepare active media stream with intelligent resume
     LaunchedEffect(activeServer.url) {
-        val resumePos = if (currentPosition > 0) currentPosition else 0L
+        val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+        val savedPos = EpisodeWatchManager.getLastPositionMs(context, route.animeTitle, epNum)
+        val resumePos = when {
+            savedPos > 0L -> savedPos
+            currentPosition > 0L -> currentPosition
+            else -> 0L
+        }
         viewModel.prepareMedia(activeServer, positionMs = resumePos, playWhenReady = true)
     }
 
-    // Progress ticker
-    LaunchedEffect(isPlaying, isUserDraggingSlider) {
+    // Progress ticker & auto-save & adaptive quality evaluation
+    LaunchedEffect(isPlaying) {
+        var tickerTicks = 0
         while (true) {
-            if (!isUserDraggingSlider && exoPlayer.playbackState == Player.STATE_READY) {
+            if (exoPlayer.playbackState == Player.STATE_READY) {
                 currentPosition = exoPlayer.currentPosition
                 bufferedPosition = exoPlayer.bufferedPosition
                 if (exoPlayer.duration > 0) {
                     duration = exoPlayer.duration
                 }
+                tickerTicks++
+                if (tickerTicks % 6 == 0 && duration > 0L) {
+                    val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+                    EpisodeWatchManager.savePositionMs(
+                        context = context,
+                        animeIdentifier = route.animeTitle,
+                        episodeNumber = epNum,
+                        positionMs = currentPosition,
+                        durationMs = duration,
+                    )
+                    viewModel.evaluateDiscreteQualityAdaptive(qualityOptions) { targetServer ->
+                        selectedQuality = targetServer.quality
+                        viewModel.prepareMedia(targetServer, positionMs = currentPosition, playWhenReady = true)
+                    }
+                }
             }
-            delay(400)
+            delay(350)
         }
     }
 
-    // Auto-hide controls after 4 seconds of playback
-    LaunchedEffect(showControls, isPlaying, isUserDraggingSlider, isScreenLocked, showEpisodeDrawer) {
-        if (showControls && isPlaying && !isUserDraggingSlider && !isScreenLocked && !showEpisodeDrawer) {
-            delay(4000)
+    // Auto-hide controls
+    LaunchedEffect(showControls, isPlaying, isScreenLocked, showQualitySheet, showAudioSheet, showSubtitleSheet, showSpeedSheet, showEpisodesSheet, showMoreSheet) {
+        val anySheetOpen = showQualitySheet || showAudioSheet || showSubtitleSheet || showSpeedSheet || showEpisodesSheet || showMoreSheet
+        if (showControls && isPlaying && !isScreenLocked && !anySheetOpen) {
+            delay(4500)
             showControls = false
         }
     }
 
-    // Auto-hide gestures feedback
+    // Auto-hide HUD feedbacks
     LaunchedEffect(volumeHudKey) {
         if (showVolumeHud) {
             delay(1200)
@@ -510,14 +724,6 @@ fun VideoPlayerScreen(
         }
     }
 
-    LaunchedEffect(aspectRatioToastText) {
-        if (aspectRatioToastText != null) {
-            delay(1500)
-            aspectRatioToastText = null
-        }
-    }
-
-    // Fullscreen / Orientation toggle
     fun toggleOrientation() {
         if (activity != null) {
             if (isLandscape) {
@@ -535,13 +741,11 @@ fun VideoPlayerScreen(
         }
     }
 
-    // Picture-in-Picture
     fun enterPip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val hasPip = context.packageManager.hasSystemFeature(PackageManager.FEATURE_PICTURE_IN_PICTURE)
             if (hasPip && activity != null) {
                 showControls = false
-                showEpisodeDrawer = false
                 try {
                     val params = PictureInPictureParams.Builder()
                         .setAspectRatio(Rational(16, 9))
@@ -554,12 +758,13 @@ fun VideoPlayerScreen(
 
     Surface(
         modifier = modifier.fillMaxSize(),
-        color = Color.Black,
+        color = Color(0xFF0B0F19),
     ) {
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .pointerInput(isScreenLocked, showEpisodeDrawer) {
+                // GESTURES: Double Tap, Single Tap, Long Press 2x
+                .pointerInput(isScreenLocked) {
                     if (isScreenLocked) {
                         detectTapGestures(
                             onTap = {
@@ -581,18 +786,29 @@ fun VideoPlayerScreen(
                                     rightSeekKey++
                                 }
                             },
-                            onTap = {
-                                if (showEpisodeDrawer) {
-                                    showEpisodeDrawer = false
-                                } else {
-                                    showControls = !showControls
+                            onLongPress = {
+                                if (isPlaying && !isFastForwarding2x) {
+                                    speedBeforeFastForward = playbackSpeed
+                                    viewModel.setPlaybackSpeed(2.0f)
+                                    isFastForwarding2x = true
                                 }
+                            },
+                            onPress = {
+                                tryAwaitRelease()
+                                if (isFastForwarding2x) {
+                                    viewModel.setPlaybackSpeed(speedBeforeFastForward)
+                                    isFastForwarding2x = false
+                                }
+                            },
+                            onTap = {
+                                showControls = !showControls
                             }
                         )
                     }
                 }
-                .pointerInput(isScreenLocked, showEpisodeDrawer) {
-                    if (!isScreenLocked && !showEpisodeDrawer) {
+                // GESTURES: Vertical Swipes for Volume & Brightness
+                .pointerInput(isScreenLocked) {
+                    if (!isScreenLocked) {
                         var isDraggingRight = false
                         detectVerticalDragGestures(
                             onDragStart = { offset ->
@@ -634,9 +850,9 @@ fun VideoPlayerScreen(
                             }
                         )
                     }
-                },
+                }
         ) {
-            // AndroidX Media3 PlayerView
+            // 1. AndroidX Media3 PlayerView
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
@@ -657,21 +873,21 @@ fun VideoPlayerScreen(
                 modifier = Modifier.fillMaxSize(),
             )
 
-            // Buffering Spinner with Animite Primary Token
+            // 2. Buffering Spinner with Animite Violet
             if (isBuffering && playerError == null) {
                 Box(
                     modifier = Modifier.fillMaxSize(),
                     contentAlignment = Alignment.Center,
                 ) {
                     CircularProgressIndicator(
-                        modifier = Modifier.size(52.dp),
-                        color = MaterialTheme.colorScheme.primary,
-                        strokeWidth = 3.dp,
+                        modifier = Modifier.size(54.dp),
+                        color = Color(0xFF8B5CF6),
+                        strokeWidth = 3.5.dp,
                     )
                 }
             }
 
-            // Left seek feedback bubble (-10s)
+            // 3. Double-tap Rewind Feedback Bubble (-10s)
             AnimatedVisibility(
                 visible = showLeftSeekFeedback,
                 enter = fadeIn() + scaleIn(),
@@ -682,10 +898,10 @@ fun VideoPlayerScreen(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    color = Color(0xE6101626),
                     modifier = Modifier.size(76.dp),
-                    shadowElevation = 6.dp,
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -693,7 +909,7 @@ fun VideoPlayerScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_player_replay_10),
+                            imageVector = Icons.Rounded.Replay10,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp),
@@ -701,15 +917,15 @@ fun VideoPlayerScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "-10s",
-                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 11.sp,
                         )
                     }
                 }
             }
 
-            // Right seek feedback bubble (+10s)
+            // 4. Double-tap Forward Feedback Bubble (+10s)
             AnimatedVisibility(
                 visible = showRightSeekFeedback,
                 enter = fadeIn() + scaleIn(),
@@ -720,10 +936,10 @@ fun VideoPlayerScreen(
             ) {
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    color = Color(0xE6101626),
                     modifier = Modifier.size(76.dp),
-                    shadowElevation = 6.dp,
+                    shadowElevation = 8.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
                 ) {
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -731,7 +947,7 @@ fun VideoPlayerScreen(
                         modifier = Modifier.fillMaxSize(),
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_player_forward_10),
+                            imageVector = Icons.Rounded.Forward10,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(28.dp),
@@ -739,124 +955,64 @@ fun VideoPlayerScreen(
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
                             text = "+10s",
-                            style = MaterialTheme.typography.labelSmall,
+                            color = Color.White,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 11.sp,
                         )
                     }
                 }
             }
 
-            // Volume HUD Overlay
+            // 5. Volume HUD Card (matches reference image)
             AnimatedVisibility(
                 visible = showVolumeHud,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .padding(end = 36.dp),
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.padding(8.dp),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(16.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(
-                                if (isMuted) R.drawable.ic_player_volume_off else R.drawable.ic_player_volume
-                            ),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(26.dp),
-                        )
-                        Text(
-                            text = "$volumePercent%",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
-            }
-
-            // Brightness HUD Overlay
-            AnimatedVisibility(
-                visible = showBrightnessHud,
-                enter = fadeIn(),
-                exit = fadeOut(),
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .padding(start = 36.dp),
-            ) {
-                Surface(
-                    shape = RoundedCornerShape(16.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
-                    shadowElevation = 8.dp,
-                    modifier = Modifier.padding(8.dp),
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(16.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_player_brightness),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(26.dp),
-                        )
-                        Text(
-                            text = "$brightnessPercent%",
-                            color = MaterialTheme.colorScheme.onSurface,
-                            fontWeight = FontWeight.Bold,
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
-                }
-            }
-
-            // Aspect Ratio HUD Toast
-            AnimatedVisibility(
-                visible = aspectRatioToastText != null,
                 enter = fadeIn() + scaleIn(),
                 exit = fadeOut() + scaleOut(),
                 modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 40.dp),
+            ) {
+                GesturesFeedbackCard(isVolume = true, percent = volumePercent)
+            }
+
+            // 6. Brightness HUD Card (matches reference image)
+            AnimatedVisibility(
+                visible = showBrightnessHud,
+                enter = fadeIn() + scaleIn(),
+                exit = fadeOut() + scaleOut(),
+                modifier = Modifier
+                    .align(Alignment.CenterStart)
+                    .padding(start = 40.dp),
+            ) {
+                GesturesFeedbackCard(isVolume = false, percent = brightnessPercent)
+            }
+
+            // 7. Fast Forward 2.0x Long Press Indicator
+            AnimatedVisibility(
+                visible = isFastForwarding2x,
+                enter = fadeIn(),
+                exit = fadeOut(),
+                modifier = Modifier
                     .align(Alignment.TopCenter)
-                    .padding(top = 70.dp),
+                    .padding(top = 28.dp)
             ) {
                 Surface(
                     shape = RoundedCornerShape(20.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
-                    shadowElevation = 6.dp,
+                    color = Color(0xE6101626),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, Color(0xFF8B5CF6)),
+                    shadowElevation = 8.dp,
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
-                    ) {
-                        Icon(
-                            painter = painterResource(R.drawable.ic_player_aspect_ratio),
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp),
-                        )
-                        Text(
-                            text = aspectRatioToastText ?: "",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                    }
+                    Text(
+                        text = "▶▶ ${stringResource(R.string.fast_forward_2x)}",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
                 }
             }
 
-            // Floating Unlock Button when screen is locked
+            // 8. Floating Unlock Prompt
             AnimatedVisibility(
                 visible = isScreenLocked && showLockFloatingUnlock,
                 enter = fadeIn() + scaleIn(),
@@ -867,8 +1023,9 @@ fun VideoPlayerScreen(
             ) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
-                    shadowElevation = 8.dp,
+                    color = Color(0xF2101626),
+                    shadowElevation = 10.dp,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)),
                     modifier = Modifier.clickable {
                         viewModel.setScreenLocked(false)
                         showControls = true
@@ -880,1431 +1037,500 @@ fun VideoPlayerScreen(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 12.dp),
                     ) {
                         Icon(
-                            painter = painterResource(R.drawable.ic_player_unlock),
+                            imageVector = Icons.Rounded.LockOpen,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp),
                         )
                         Text(
                             text = stringResource(R.string.tap_to_unlock),
-                            color = MaterialTheme.colorScheme.onSurface,
+                            color = Color.White,
                             fontWeight = FontWeight.SemiBold,
-                            style = MaterialTheme.typography.labelMedium,
+                            fontSize = 13.sp,
                         )
                     }
                 }
             }
 
-            // CONTROLS OVERLAY
+            // 8.5 Skip Intro / Outro Floating Button (AniSkip / Chapter markers)
+            AnimatedVisibility(
+                visible = activeSkipInterval != null && !isScreenLocked,
+                enter = fadeIn() + slideInHorizontally(initialOffsetX = { it }),
+                exit = fadeOut() + slideOutHorizontally(targetOffsetX = { it }),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(end = 24.dp, bottom = 96.dp),
+            ) {
+                activeSkipInterval?.let { interval ->
+                    Surface(
+                        shape = RoundedCornerShape(20.dp),
+                        color = Color(0xF2101626),
+                        border = androidx.compose.foundation.BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary),
+                        shadowElevation = 10.dp,
+                        modifier = Modifier.clickable {
+                            exoPlayer.seekTo(interval.endTimeMs)
+                            hasSkippedCurrentInterval = true
+                        }
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.SkipNext,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Text(
+                                text = if (interval.skipType.equals("ed", ignoreCase = true)) {
+                                    stringResource(R.string.skip_outro)
+                                } else {
+                                    stringResource(R.string.skip_intro)
+                                },
+                                color = Color.White,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+
+            // 9. Error Overlay with Retry Option
+            if (playerError != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.85f)),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFEF4444),
+                            modifier = Modifier.size(48.dp),
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = stringResource(R.string.playback_failed),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White,
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = playerError ?: "",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFF94A3B8),
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                        )
+                        Spacer(modifier = Modifier.height(18.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Button(
+                                onClick = {
+                                    playerError = null
+                                    isBuffering = true
+                                    val curEp = episodesList.firstOrNull { it.number == activeEpisodeNumber }
+                                    if (curEp != null) {
+                                        switchToEpisode(curEp)
+                                    } else {
+                                        viewModel.prepareMedia(activeServer, positionMs = currentPosition, playWhenReady = true)
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                                shape = RoundedCornerShape(12.dp),
+                            ) {
+                                Text(stringResource(R.string.retry), color = Color.White, fontWeight = FontWeight.Bold)
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    playerError = null
+                                    showEpisodesSheet = true
+                                },
+                                shape = RoundedCornerShape(12.dp),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
+                            ) {
+                                Text("تغيير المصدر / الحلقة", color = Color.White, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 10. CONTROLS OVERLAY (TOP, GESTURES, BOTTOM WITH LTR PROGRESS)
             AnimatedVisibility(
                 visible = showControls && !isScreenLocked,
                 enter = fadeIn(),
                 exit = fadeOut(),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(
-                                    Color.Black.copy(alpha = 0.82f),
-                                    Color.Transparent,
-                                    Color.Black.copy(alpha = 0.86f),
-                                )
-                            )
-                        ),
-                ) {
-                    // TOP BAR
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.TopCenter)
-                            .padding(horizontal = 16.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                    ) {
-                        // Left: Back button + Anime Title + Episode Badge
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f, fill = false),
-                        ) {
-                            IconButton(
-                                onClick = onBack,
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = stringResource(R.string.back),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(22.dp),
-                                )
-                            }
-
-                            Text(
-                                text = route.animeTitle.ifEmpty { "Animite" },
-                                color = Color.White,
-                                fontWeight = FontWeight.Bold,
-                                style = MaterialTheme.typography.titleMedium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                            )
-
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.25f),
-                            ) {
-                                Text(
-                                    text = stringResource(R.string.episode_label, activeEpisodeNumber),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                )
-                            }
+                val currentEp = episodesList.firstOrNull { it.number == activeEpisodeNumber }
+                VideoPlayerControls(
+                    animeTitle = route.animeTitle,
+                    episodeNumber = activeEpisodeNumber,
+                    episodeTitle = currentEp?.title,
+                    isPlaying = isPlaying,
+                    isBuffering = isBuffering,
+                    isScreenLocked = isScreenLocked,
+                    isFullscreen = isLandscape,
+                    playbackSpeed = playbackSpeed,
+                    currentPositionMs = currentPosition,
+                    bufferedPositionMs = bufferedPosition,
+                    durationMs = duration,
+                    hasPreviousEpisode = hasPreviousEpisode(),
+                    hasNextEpisode = hasNextEpisode(),
+                    onBack = handleBack,
+                    onTogglePlayPause = {
+                        if (isPlaying) exoPlayer.pause() else exoPlayer.play()
+                    },
+                    onSeek = { targetMs ->
+                        exoPlayer.seekTo(targetMs)
+                    },
+                    onSeekRelative = { offsetMs ->
+                        viewModel.seekRelative(offsetMs)
+                        if (offsetMs < 0) {
+                            showLeftSeekFeedback = true
+                            leftSeekKey++
+                        } else {
+                            showRightSeekFeedback = true
+                            rightSeekKey++
                         }
-
-                        // Right: Top Control Icons
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        ) {
-                            // 1. Playback Speed
-                            IconButton(
-                                onClick = { showSpeedDialog = true },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_speed),
-                                    contentDescription = stringResource(R.string.playback_speed),
-                                    tint = if (playbackSpeed != 1.0f) MaterialTheme.colorScheme.primary else Color.White,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // 2. Sleep Timer
-                            IconButton(
-                                onClick = { showTimerDialog = true },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_timer),
-                                    contentDescription = stringResource(R.string.sleep_timer),
-                                    tint = if (sleepTimerMinutes != null) MaterialTheme.colorScheme.primary else Color.White,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // 3. Aspect Ratio
-                            IconButton(
-                                onClick = {
-                                    val (nextMode, label) = when (resizeMode) {
-                                        AspectRatioFrameLayout.RESIZE_MODE_FIT ->
-                                            AspectRatioFrameLayout.RESIZE_MODE_FILL to "Fill"
-                                        AspectRatioFrameLayout.RESIZE_MODE_FILL ->
-                                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM to "Zoom"
-                                        else ->
-                                            AspectRatioFrameLayout.RESIZE_MODE_FIT to "Fit"
-                                    }
-                                    viewModel.setResizeMode(nextMode)
-                                    aspectRatioToastText = label
-                                },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_aspect_ratio),
-                                    contentDescription = stringResource(R.string.aspect_ratio),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // 4. Quality Selector
-                            IconButton(
-                                onClick = { showQualityDialog = true },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_settings),
-                                    contentDescription = stringResource(R.string.select_quality),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // 5. Subtitles
-                            IconButton(
-                                onClick = { showSubtitlesDialog = true },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_subtitles),
-                                    contentDescription = stringResource(R.string.subtitles),
-                                    tint = if (subtitlesEnabled) MaterialTheme.colorScheme.primary else Color.White.copy(alpha = 0.6f),
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // 6. Audio Track
-                            IconButton(
-                                onClick = { showAudioDialog = true },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_audio_track),
-                                    contentDescription = stringResource(R.string.audio_track),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-
-                            // 7. PiP
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                                IconButton(
-                                    onClick = { enterPip() },
-                                    modifier = Modifier.size(36.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_player_pip),
-                                        contentDescription = stringResource(R.string.pip_mode),
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                            }
-
-                            // 8. More Settings
-                            IconButton(
-                                onClick = {
-                                    viewModel.refreshCacheInfo()
-                                    showMoreDialog = true
-                                },
-                                modifier = Modifier.size(36.dp),
-                            ) {
-                                Icon(
-                                    painter = painterResource(R.drawable.ic_player_more),
-                                    contentDescription = stringResource(R.string.more_options),
-                                    tint = Color.White,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                        }
-                    }
-
-                    // CENTER PLAYBACK CONTROLS
-                    Row(
-                        modifier = Modifier
-                            .align(Alignment.Center)
-                            .padding(horizontal = 24.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(24.dp),
-                    ) {
-                        // Rewind -10s
-                        IconButton(
-                            onClick = {
-                                viewModel.seekRelative(-10000)
-                                showLeftSeekFeedback = true
-                                leftSeekKey++
-                            },
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f)),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_player_replay_10),
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-
-                        // Previous Episode
-                        IconButton(
-                            onClick = { playPreviousEpisode() },
-                            enabled = hasPreviousEpisode(),
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f)),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_player_prev_ep),
-                                contentDescription = null,
-                                tint = if (hasPreviousEpisode()) Color.White else Color.White.copy(alpha = 0.35f),
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-
-                        // Main Play / Pause Button with Animite Primary Token
-                        IconButton(
-                            onClick = {
-                                if (isPlaying) exoPlayer.pause() else exoPlayer.play()
-                            },
-                            modifier = Modifier
-                                .size(62.dp)
-                                .clip(CircleShape)
-                                .background(MaterialTheme.colorScheme.primary)
-                                .shadow(8.dp, CircleShape),
-                        ) {
-                            Icon(
-                                painter = painterResource(
-                                    if (isPlaying) R.drawable.ic_player_pause else R.drawable.ic_player_play
-                                ),
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onPrimary,
-                                modifier = Modifier.size(32.dp),
-                            )
-                        }
-
-                        // Next Episode
-                        IconButton(
-                            onClick = { playNextEpisode() },
-                            enabled = hasNextEpisode(),
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f)),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_player_next_ep),
-                                contentDescription = null,
-                                tint = if (hasNextEpisode()) Color.White else Color.White.copy(alpha = 0.35f),
-                                modifier = Modifier.size(22.dp),
-                            )
-                        }
-
-                        // Forward +10s
-                        IconButton(
-                            onClick = {
-                                viewModel.seekRelative(10000)
-                                showRightSeekFeedback = true
-                                rightSeekKey++
-                            },
-                            modifier = Modifier
-                                .size(46.dp)
-                                .clip(CircleShape)
-                                .background(Color.Black.copy(alpha = 0.45f)),
-                        ) {
-                            Icon(
-                                painter = painterResource(R.drawable.ic_player_forward_10),
-                                contentDescription = null,
-                                tint = Color.White,
-                                modifier = Modifier.size(24.dp),
-                            )
-                        }
-                    }
-
-                    // BOTTOM PANEL: Progress Timeline + Action Row
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .align(Alignment.BottomCenter)
-                            .padding(bottom = 12.dp),
-                        verticalArrangement = Arrangement.spacedBy(4.dp),
-                    ) {
-                        // PROGRESS TIMELINE WITH TIMESTAMPS
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Text(
-                                text = formatDuration(currentPosition),
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(30.dp),
-                                contentAlignment = Alignment.CenterStart,
-                            ) {
-                                val total = duration.coerceAtLeast(1L).toFloat()
-                                val playedFrac = if (isUserDraggingSlider) sliderPosition else (currentPosition.toFloat() / total).coerceIn(0f, 1f)
-                                val bufferedFrac = (bufferedPosition.toFloat() / total).coerceIn(0f, 1f)
-
-                                // Progress Canvas
-                                val primaryColor = MaterialTheme.colorScheme.primary
-                                Canvas(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(4.dp)
-                                        .clip(RoundedCornerShape(2.dp))
-                                ) {
-                                    // Inactive Track
-                                    drawRect(
-                                        color = Color.White.copy(alpha = 0.2f),
-                                        size = size,
-                                    )
-                                    // Buffered Track
-                                    drawRect(
-                                        color = Color.White.copy(alpha = 0.45f),
-                                        size = size.copy(width = size.width * bufferedFrac),
-                                    )
-                                    // Played Track (Animite Primary)
-                                    drawRect(
-                                        color = primaryColor,
-                                        size = size.copy(width = size.width * playedFrac),
-                                    )
-                                }
-
-                                // Interactive Slider with Native Animite Thumb
-                                Slider(
-                                    value = if (isUserDraggingSlider) sliderPosition else if (duration > 0) (currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f,
-                                    onValueChange = { frac ->
-                                        isUserDraggingSlider = true
-                                        sliderPosition = frac
-                                    },
-                                    onValueChangeFinished = {
-                                        val targetMs = (sliderPosition * duration).toLong()
-                                        exoPlayer.seekTo(targetMs)
-                                        isUserDraggingSlider = false
-                                    },
-                                    thumb = {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(15.dp)
-                                                .shadow(4.dp, CircleShape)
-                                                .background(primaryColor, CircleShape)
-                                                .clip(CircleShape),
-                                            contentAlignment = Alignment.Center,
-                                        ) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(5.dp)
-                                                    .background(Color.White, CircleShape)
-                                            )
-                                        }
-                                    },
-                                    colors = SliderDefaults.colors(
-                                        activeTrackColor = Color.Transparent,
-                                        inactiveTrackColor = Color.Transparent,
-                                    ),
-                                    modifier = Modifier.fillMaxWidth(),
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(10.dp))
-
-                            Text(
-                                text = formatDuration(duration),
-                                color = Color.White,
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.labelSmall,
-                            )
-                        }
-
-                        // BOTTOM ACTIONS ROW
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 20.dp, vertical = 2.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                        ) {
-                            // Left actions: Lock & Volume
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            ) {
-                                IconButton(
-                                    onClick = { viewModel.setScreenLocked(true) },
-                                    modifier = Modifier.size(36.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.ic_player_lock),
-                                        contentDescription = stringResource(R.string.screen_locked),
-                                        tint = Color.White,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = {
-                                        isMuted = !isMuted
-                                        exoPlayer.volume = if (isMuted) 0f else 1f
-                                    },
-                                    modifier = Modifier.size(36.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(
-                                            if (isMuted) R.drawable.ic_player_volume_off else R.drawable.ic_player_volume
-                                        ),
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-                            }
-
-                            // Right actions: Episodes Drawer & Fullscreen Orientation Toggle
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(14.dp),
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        showEpisodeDrawer = !showEpisodeDrawer
-                                    },
-                                    modifier = Modifier.size(36.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(R.drawable.episodes),
-                                        contentDescription = stringResource(R.string.episodes_drawer),
-                                        tint = if (showEpisodeDrawer) MaterialTheme.colorScheme.primary else Color.White,
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-
-                                IconButton(
-                                    onClick = { toggleOrientation() },
-                                    modifier = Modifier.size(36.dp),
-                                ) {
-                                    Icon(
-                                        painter = painterResource(
-                                            if (isLandscape) R.drawable.ic_player_fullscreen_exit else R.drawable.ic_player_fullscreen
-                                        ),
-                                        contentDescription = null,
-                                        tint = Color.White,
-                                        modifier = Modifier.size(22.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
+                    },
+                    onPreviousEpisode = { playPreviousEpisode() },
+                    onNextEpisode = { playNextEpisode() },
+                    onToggleFullscreen = { toggleOrientation() },
+                    onOpenSpeedSheet = { showSpeedSheet = true },
+                    onOpenQualitySheet = { showQualitySheet = true },
+                    onOpenAudioSheet = { showAudioSheet = true },
+                    onOpenSubtitlesSheet = { showSubtitleSheet = true },
+                    hasAudioTracks = audioTracks.isNotEmpty(),
+                    hasSubtitleTracks = subtitleTracks.isNotEmpty(),
+                    isMuted = isMuted,
+                    onToggleMute = {
+                        isMuted = !isMuted
+                        exoPlayer.volume = if (isMuted) 0f else 1f
+                    },
+                    onOpenEpisodesSheet = { showEpisodesSheet = true },
+                    onOpenMoreSheet = {
+                        viewModel.refreshCacheInfo()
+                        showMoreSheet = true
+                    },
+                    onToggleLock = {
+                        viewModel.setScreenLocked(true)
+                        showControls = false
+                    },
+                    onPip = { enterPip() },
+                )
             }
 
-            // RIGHT-SIDE EPISODE DRAWER PANEL
+            // 11. EPISODE SIDE DRAWER (Landscape mode - matching Frame 2 of reference design)
             AnimatedVisibility(
-                visible = showEpisodeDrawer,
+                visible = showEpisodesSheet && isLandscape,
                 enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
                 exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+                modifier = Modifier.align(Alignment.CenterEnd),
+            ) {
+                EpisodeSideDrawer(
+                    episodes = episodesList,
+                    activeEpisodeNumber = activeEpisodeNumber,
+                    onSelectEpisode = { ep ->
+                        switchToEpisode(ep)
+                    },
+                    onDismiss = { showEpisodesSheet = false },
+                )
+            }
+        }
+    }
+
+    // MODAL BOTTOM SHEETS
+    if (showQualitySheet) {
+        QualitySelectionSheet(
+            qualityOptions = qualityOptions,
+            selectedQuality = selectedQuality,
+            isAdaptiveAuto = isAdaptiveAuto,
+            effectiveQuality = effectiveQuality,
+            onSelectAuto = {
+                viewModel.setAutoQualityMode(true)
+            },
+            onSelectQuality = { opt ->
+                viewModel.setAutoQualityMode(false)
+                selectedQuality = opt.quality.canonicalName
+                val videoTrack = viewModel.videoTracks.value.firstOrNull { it.height == opt.quality.height }
+                if (videoTrack != null) {
+                    viewModel.selectVideoTrack(videoTrack)
+                } else {
+                    viewModel.prepareMedia(opt.primaryServer, positionMs = currentPosition, playWhenReady = true)
+                }
+            },
+            onDismiss = { showQualitySheet = false }
+        )
+    }
+
+    if (showAudioSheet) {
+        AudioSelectionSheet(
+            audioTracks = audioTracks,
+            onSelectTrack = { track ->
+                viewModel.selectAudioTrack(track)
+            },
+            onDismiss = { showAudioSheet = false }
+        )
+    }
+
+    if (showSubtitleSheet) {
+        SubtitleSelectionSheet(
+            subtitleTracks = subtitleTracks,
+            subtitlesEnabled = subtitlesEnabled,
+            onSelectTrack = { track ->
+                viewModel.selectSubtitleTrack(track)
+            },
+            onDismiss = { showSubtitleSheet = false }
+        )
+    }
+
+    if (showSpeedSheet) {
+        PlaybackSpeedSheet(
+            currentSpeed = playbackSpeed,
+            onSelectSpeed = { newSpeed ->
+                viewModel.setPlaybackSpeed(newSpeed)
+            },
+            onDismiss = { showSpeedSheet = false }
+        )
+    }
+
+    // Bottom sheet for portrait mode fallback
+    if (showEpisodesSheet && !isLandscape) {
+        EpisodeListSheet(
+            episodes = episodesList,
+            activeEpisodeNumber = activeEpisodeNumber,
+            onSelectEpisode = { ep ->
+                switchToEpisode(ep)
+            },
+            onDismiss = { showEpisodesSheet = false }
+        )
+    }
+
+    if (showMoreSheet) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { showMoreSheet = false }) {
+            Surface(
+                shape = RoundedCornerShape(20.dp),
+                color = Color(0xF2111625),
+                border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.25f)),
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(320.dp),
+                    .fillMaxWidth()
+                    .padding(16.dp)
             ) {
-                Surface(
-                    shape = RoundedCornerShape(topStart = 20.dp, bottomStart = 20.dp),
-                    color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                    modifier = Modifier.fillMaxSize(),
-                    shadowElevation = 12.dp,
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(vertical = 14.dp, horizontal = 16.dp)
-                    ) {
-                        // Drawer Header
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(bottom = 12.dp)
-                        ) {
-                            IconButton(
-                                onClick = { showEpisodeDrawer = false },
-                                modifier = Modifier.size(32.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.AutoMirrored.Rounded.ArrowBack,
-                                    contentDescription = stringResource(R.string.back),
-                                    tint = MaterialTheme.colorScheme.onSurface,
-                                    modifier = Modifier.size(20.dp),
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = stringResource(R.string.episodes_drawer),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
+                Column(modifier = Modifier.padding(20.dp)) {
+                    Text(
+                        text = stringResource(R.string.player_settings),
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 17.sp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                        // Episodes List
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            items(episodesList) { epItem ->
-                                val isCurrent = epItem.number == activeEpisodeNumber
-                                val epNumFloat = epItem.number.toFloatOrNull() ?: 1f
-                                val currentEpFloat = activeEpisodeNumber.toFloatOrNull() ?: 1f
-                                val isWatched = epNumFloat < currentEpFloat
-
-                                Card(
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isCurrent) {
-                                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                                        } else {
-                                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                        }
-                                    ),
-                                    border = if (isCurrent) {
-                                        BorderStroke(1.2.dp, MaterialTheme.colorScheme.primary)
-                                    } else null,
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable {
-                                            if (!isCurrent) {
-                                                switchToEpisode(epItem)
-                                            }
-                                        },
-                                ) {
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(horizontal = 14.dp, vertical = 12.dp)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically,
-                                        ) {
-                                            Text(
-                                                text = "Episode ${epItem.number.removeSuffix(".0")}",
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = if (isCurrent) FontWeight.Bold else FontWeight.Medium,
-                                                color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                            )
-                                            Text(
-                                                text = if (isCurrent && duration > 0) formatDuration(duration) else epItem.durationText,
-                                                style = MaterialTheme.typography.labelSmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            )
-                                        }
-
-                                        Spacer(modifier = Modifier.height(8.dp))
-
-                                        // Progress indicator line
-                                        val primaryColor = MaterialTheme.colorScheme.primary
-                                        Canvas(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .height(3.dp)
-                                                .clip(RoundedCornerShape(1.5.dp))
-                                        ) {
-                                            drawRect(
-                                                color = Color.White.copy(alpha = 0.12f),
-                                                size = size,
-                                            )
-                                            val progressFraction = when {
-                                                isCurrent -> if (duration > 0) (currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0.85f
-                                                isWatched -> 1.0f
-                                                else -> 0.0f
-                                            }
-                                            if (progressFraction > 0f) {
-                                                drawRect(
-                                                    color = primaryColor,
-                                                    size = size.copy(width = size.width * progressFraction)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Error Overlay with Retry
-            if (playerError != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.88f)),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Card(
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                        modifier = Modifier.padding(24.dp),
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.spacedBy(16.dp),
-                            modifier = Modifier.padding(24.dp),
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Warning,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(48.dp),
-                            )
-                            Text(
-                                text = stringResource(R.string.playback_failed),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                textAlign = TextAlign.Center,
-                            )
-                            Text(
-                                text = playerError ?: "",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                textAlign = TextAlign.Center,
-                            )
-                            Button(
-                                onClick = {
-                                    playerError = null
-                                    viewModel.prepareMedia(activeServer, positionMs = currentPosition, playWhenReady = true)
-                                },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary,
-                                ),
-                                shape = RoundedCornerShape(12.dp),
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Refresh,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(text = stringResource(R.string.retry), fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 1) PLAYBACK SPEED DIALOG
-    if (showSpeedDialog) {
-        Dialog(onDismissRequest = { showSpeedDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
+                    // Aspect Ratio Button
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.playback_speed),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        IconButton(onClick = { showSpeedDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f).forEach { speed ->
-                        val isSelected = playbackSpeed == speed
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                            },
-                            border = if (isSelected) {
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            } else null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setPlaybackSpeed(speed)
-                                    showSpeedDialog = false
-                                },
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = "${speed}x",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                )
-                                if (isSelected) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp),
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 2) QUALITY SELECTION DIALOG
-    if (showQualityDialog) {
-        Dialog(onDismissRequest = { showQualityDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.select_quality),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        IconButton(onClick = { showQualityDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    val videoTracks by viewModel.videoTracks.collectAsState()
-                    val isVideoAdaptiveAuto by viewModel.isVideoAdaptiveAuto.collectAsState()
-
-                    if (videoTracks.isNotEmpty()) {
-                        // 1. Auto track (adaptive)
-                        val isAutoSelected = isVideoAdaptiveAuto
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isAutoSelected) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                            },
-                            border = if (isAutoSelected) {
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            } else null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.selectVideoTrack(null)
-                                    selectedQuality = "Auto"
-                                    showQualityDialog = false
-                                },
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = "تلقائي (Auto)",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isAutoSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                )
-                                if (isAutoSelected) {
-                                    Icon(
-                                        imageVector = Icons.Rounded.Check,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp),
-                                    )
-                                }
-                            }
-                        }
-
-                        // 2. Discovered resolution tracks, sorted lowest to highest
-                        videoTracks.sortedBy { it.height }.forEach { track ->
-                            val isSelected = !isAutoSelected && track.isSelected
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                },
-                                border = if (isSelected) {
-                                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                                } else null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.selectVideoTrack(track)
-                                        selectedQuality = track.name
-                                        showQualityDialog = false
-                                    },
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = track.name,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else if (currentServers.isNotEmpty()) {
-                        // For separate direct video links, sort from lowest to highest and deduplicate
-                        val sortedServers = currentServers
-                            .distinctBy { it.quality }
-                            .sortedBy { server ->
-                                val q = server.quality.lowercase()
-                                when {
-                                    q.contains("360") -> 360
-                                    q.contains("480") || q.contains("sd") -> 480
-                                    q.contains("720") -> 720
-                                    q.contains("1080") -> 1080
-                                    q.contains("1440") || q.contains("2k") -> 1440
-                                    q.contains("2160") || q.contains("4k") -> 2160
-                                    q.contains("hd") -> 720
-                                    else -> 500
-                                }
-                            }
-
-                        sortedServers.forEach { server ->
-                            val isSelected = server.quality == selectedQuality
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (isSelected) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                },
-                                border = if (isSelected) {
-                                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                                } else null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        selectedQuality = server.quality
-                                        val resumePos = exoPlayer.currentPosition
-                                        viewModel.prepareMedia(server, positionMs = resumePos, playWhenReady = true)
-                                        showQualityDialog = false
-                                    },
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = server.quality,
-                                        style = MaterialTheme.typography.titleSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(20.dp),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        Text(
-                            text = stringResource(R.string.no_playable_quality),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(vertical = 12.dp),
-                        )
-                    }
-                }
-            }
-        }
-    }
-
-    // 3) SUBTITLES DIALOG
-    if (showSubtitlesDialog) {
-        Dialog(onDismissRequest = { showSubtitlesDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.subtitles),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        IconButton(onClick = { showSubtitlesDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    // Toggle Subtitles On/Off
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (subtitlesEnabled) {
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                        } else {
-                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                        },
-                        border = if (subtitlesEnabled) {
-                            BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                        } else null,
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                viewModel.toggleSubtitles(!subtitlesEnabled)
-                            },
+                                val nextMode = when (resizeMode) {
+                                    AspectRatioFrameLayout.RESIZE_MODE_FIT -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+                                    AspectRatioFrameLayout.RESIZE_MODE_FILL -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+                                    else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+                                }
+                                viewModel.setResizeMode(nextMode)
+                            }
+                            .padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = stringResource(R.string.aspect_ratio), color = Color.White, fontSize = 14.sp)
+                        val modeLabel = when (resizeMode) {
+                            AspectRatioFrameLayout.RESIZE_MODE_FILL -> stringResource(R.string.aspect_fill)
+                            AspectRatioFrameLayout.RESIZE_MODE_ZOOM -> stringResource(R.string.aspect_zoom)
+                            else -> stringResource(R.string.aspect_fit)
+                        }
+                        Text(text = modeLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Skip Intro & Outro Toggle
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.toggleSkipIntro(!isSkipIntroEnabled)
+                            }
+                            .padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = stringResource(R.string.skip_intro_settings), color = Color.White, fontSize = 14.sp)
+                        val skipStatusLabel = if (isSkipIntroEnabled) stringResource(R.string.subtitles_enabled) else stringResource(R.string.subtitles_disabled)
+                        Text(
+                            text = skipStatusLabel,
+                            color = if (isSkipIntroEnabled) MaterialTheme.colorScheme.primary else Color(0xFF94A3B8),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Sleep Timer
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val nextTimer = when (sleepTimerMinutes) {
+                                    null -> 15
+                                    15 -> 30
+                                    30 -> 60
+                                    60 -> -1
+                                    else -> null
+                                }
+                                viewModel.setSleepTimer(nextTimer)
+                            }
+                            .padding(vertical = 10.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(text = stringResource(R.string.sleep_timer), color = Color.White, fontSize = 14.sp)
+                        val timerLabel = when (sleepTimerMinutes) {
+                            15 -> stringResource(R.string.timer_15_min)
+                            30 -> stringResource(R.string.timer_30_min)
+                            60 -> stringResource(R.string.timer_60_min)
+                            -1 -> stringResource(R.string.timer_end_of_episode)
+                            else -> stringResource(R.string.timer_off)
+                        }
+                        Text(text = timerLabel, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
+                    // Custom Intro Timing Section
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(Color(0xFF161C2C))
+                            .padding(12.dp)
                     ) {
                         Row(
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
-                                text = if (subtitlesEnabled) stringResource(R.string.subtitles_enabled) else stringResource(R.string.subtitles_disabled),
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = stringResource(R.string.custom_intro_title),
+                                color = Color.White,
                                 fontWeight = FontWeight.SemiBold,
-                                color = if (subtitlesEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                                fontSize = 13.sp,
                             )
-                            Text(
-                                text = if (subtitlesEnabled) "ON" else "OFF",
-                                style = MaterialTheme.typography.labelMedium,
-                                fontWeight = FontWeight.Bold,
-                                color = if (subtitlesEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    // Subtitle Tracks if present
-                    if (subtitleTracks.isNotEmpty() && subtitlesEnabled) {
-                        Text(
-                            text = "Tracks",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                        subtitleTracks.forEach { track ->
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (track.isSelected) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
-                                },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.selectSubtitleTrack(track)
-                                        showSubtitlesDialog = false
-                                    },
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = track.name,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = if (track.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (track.isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 4) AUDIO TRACK DIALOG
-    if (showAudioDialog) {
-        Dialog(onDismissRequest = { showAudioDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.audio_track),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        IconButton(onClick = { showAudioDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    if (audioTracks.isNotEmpty()) {
-                        audioTracks.forEach { track ->
-                            Surface(
-                                shape = RoundedCornerShape(12.dp),
-                                color = if (track.isSelected) {
-                                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-                                } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-                                },
-                                border = if (track.isSelected) {
-                                    BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                                } else null,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable {
-                                        viewModel.selectAudioTrack(track)
-                                        showAudioDialog = false
-                                    },
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically,
-                                ) {
-                                    Text(
-                                        text = track.name,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = if (track.isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        color = if (track.isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                    )
-                                    if (track.isSelected) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        // Default Japanese stereo fallback
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = "Default Audio (Stereo)",
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.primary,
-                                )
-                                Icon(
-                                    imageVector = Icons.Rounded.Check,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(18.dp),
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 5) SLEEP TIMER DIALOG
-    if (showTimerDialog) {
-        Dialog(onDismissRequest = { showTimerDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.sleep_timer),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        IconButton(onClick = { showTimerDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    val timerOptions = listOf(
-                        null to stringResource(R.string.timer_off),
-                        15 to stringResource(R.string.timer_15_min),
-                        30 to stringResource(R.string.timer_30_min),
-                        45 to stringResource(R.string.timer_45_min),
-                        60 to stringResource(R.string.timer_60_min),
-                        -1 to stringResource(R.string.timer_end_of_episode),
-                    )
-
-                    timerOptions.forEach { (mins, label) ->
-                        val isSelected = sleepTimerMinutes == mins
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) {
-                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                            val introDesc = if (customIntroInterval != null) {
+                                "${PlayerProgressState.formatPlayerTime(customIntroInterval!!.first)} - ${PlayerProgressState.formatPlayerTime(customIntroInterval!!.second)}"
                             } else {
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                            },
-                            border = if (isSelected) {
-                                BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            } else null,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    viewModel.setSleepTimer(mins)
-                                    showTimerDialog = false
-                                },
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically,
-                            ) {
-                                Text(
-                                    text = label,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                )
-                                if (isSelected) {
-                                    val statusText = if (mins != null && mins > 0 && sleepTimerSecondsLeft != null) {
-                                        "${(sleepTimerSecondsLeft ?: 0) / 60}m"
-                                    } else null
-                                    if (statusText != null) {
-                                        Text(text = statusText, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
-                                    } else {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Check,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp),
-                                        )
-                                    }
-                                }
+                                stringResource(R.string.no_intro_set)
                             }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // 6) MORE OPTIONS / CACHE SETTINGS DIALOG
-    if (showMoreDialog) {
-        Dialog(onDismissRequest = { showMoreDialog = false }) {
-            Card(
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        Text(
-                            text = stringResource(R.string.player_settings),
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurface,
-                        )
-                        IconButton(onClick = { showMoreDialog = false }) {
-                            Icon(
-                                imageVector = Icons.Rounded.Close,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                    }
-
-                    // CACHE SECTION
-                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            text = stringResource(R.string.cache_settings),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
                             Text(
-                                text = stringResource(R.string.current_cache_size),
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                            Text(
-                                text = viewModel.cacheManager.formatBytes(cacheSizeBytes),
-                                style = MaterialTheme.typography.bodyMedium,
+                                text = introDesc,
+                                color = if (customIntroInterval != null) MaterialTheme.colorScheme.primary else Color(0xFF94A3B8),
                                 fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 12.sp,
                             )
                         }
-
-                        Button(
-                            onClick = { viewModel.clearCache() },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
-                                contentColor = MaterialTheme.colorScheme.error,
-                            ),
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth(),
-                        ) {
-                            Text(
-                                text = stringResource(R.string.clear_cache),
-                                fontWeight = FontWeight.SemiBold,
-                                style = MaterialTheme.typography.labelLarge,
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(4.dp))
-
-                        Text(
-                            text = stringResource(R.string.cache_limit),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
+                        Spacer(modifier = Modifier.height(8.dp))
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                         ) {
-                            listOf(
-                                MediaCacheManager.CACHE_LIMIT_250MB to "250 MB",
-                                MediaCacheManager.CACHE_LIMIT_500MB to "500 MB",
-                                MediaCacheManager.CACHE_LIMIT_1GB to "1 GB",
-                            ).forEach { (limitBytes, label) ->
-                                val isSelected = cacheLimitBytes == limitBytes
-                                Surface(
-                                    shape = RoundedCornerShape(10.dp),
-                                    color = if (isSelected) {
-                                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)
-                                    } else {
-                                        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-                                    },
-                                    border = if (isSelected) {
-                                        BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                                    } else null,
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clickable { viewModel.setCacheLimit(limitBytes) },
-                                ) {
-                                    Text(
-                                        text = label,
-                                        style = MaterialTheme.typography.labelSmall,
-                                        fontWeight = FontWeight.Bold,
-                                        textAlign = TextAlign.Center,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(vertical = 10.dp),
-                                    )
-                                }
+                            OutlinedButton(
+                                onClick = {
+                                    val endMs = customIntroInterval?.second ?: (currentPosition + 90000L)
+                                    EpisodeWatchManager.saveCustomIntro(context, route.animeTitle, currentPosition, endMs)
+                                    val updated = EpisodeWatchManager.getCustomIntro(context, route.animeTitle)
+                                    customIntroInterval = updated
+                                    val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+                                    viewModel.loadSkipIntervals(listOf(route.animeTitle), epNum, updated)
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    text = "${stringResource(R.string.set_intro_start)} (${PlayerProgressState.formatPlayerTime(currentPosition)})",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    val startMs = customIntroInterval?.first ?: 0L
+                                    if (currentPosition > startMs) {
+                                        EpisodeWatchManager.saveCustomIntro(context, route.animeTitle, startMs, currentPosition)
+                                        val updated = EpisodeWatchManager.getCustomIntro(context, route.animeTitle)
+                                        customIntroInterval = updated
+                                        val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+                                        viewModel.loadSkipIntervals(listOf(route.animeTitle), epNum, updated)
+                                    }
+                                },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp),
+                                contentPadding = androidx.compose.foundation.layout.PaddingValues(horizontal = 4.dp, vertical = 6.dp),
+                            ) {
+                                Text(
+                                    text = "${stringResource(R.string.set_intro_end)} (${PlayerProgressState.formatPlayerTime(currentPosition)})",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Medium,
+                                )
                             }
                         }
+                        if (customIntroInterval != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            TextButton(
+                                onClick = {
+                                    EpisodeWatchManager.clearCustomIntro(context, route.animeTitle)
+                                    customIntroInterval = null
+                                    val epNum = activeEpisodeNumber.toFloatOrNull() ?: 1.0f
+                                    viewModel.loadSkipIntervals(listOf(route.animeTitle), epNum, null)
+                                },
+                                modifier = Modifier.align(Alignment.End),
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.clear_custom_intro),
+                                    color = Color(0xFFEF4444),
+                                    fontSize = 11.sp,
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Clear Cache Button
+                    Button(
+                        onClick = {
+                            viewModel.cacheManager.clearCache()
+                            viewModel.refreshCacheInfo()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1E2638)),
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(text = stringResource(R.string.clear_cache), color = Color.White, fontSize = 13.sp)
                     }
                 }
             }
         }
-    }
-}
-
-private fun formatDuration(millis: Long): String {
-    if (millis <= 0) return "00:00"
-    val totalSeconds = millis / 1000
-    val seconds = totalSeconds % 60
-    val minutes = (totalSeconds / 60) % 60
-    val hours = totalSeconds / 3600
-    return if (hours > 0) {
-        String.format(Locale.US, "%02d:%02d:%02d", hours, minutes, seconds)
-    } else {
-        String.format(Locale.US, "%02d:%02d", minutes, seconds)
     }
 }

@@ -12,6 +12,7 @@ import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.displayCutout
@@ -55,7 +56,12 @@ import com.imashnake.animite.core.ui.LocalPaddings
 import com.imashnake.animite.core.ui.component.Chip
 import com.imashnake.animite.core.ui.component.EmptyChip
 import com.imashnake.animite.core.ui.component.LoadingMediaSmallRow
+import androidx.compose.runtime.DisposableEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.imashnake.animite.core.ui.component.MediaCard
+import com.imashnake.animite.core.ui.component.MediaRowError
 import com.imashnake.animite.core.ui.component.MediaSmallRow
 import com.imashnake.animite.core.ui.ext.horizontalOnly
 import com.imashnake.animite.core.ui.layout.TranslucentStatusBarLayout
@@ -94,6 +100,20 @@ fun AnimeScreen(
     val insetAndNavigationPaddingValues = insetPaddingValues + navigationComponentPaddingValues
 
     val lists by viewModel.lists.collectAsState()
+    val continueWatching by viewModel.continueWatching.collectAsState()
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadContinueWatching()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     var isRefreshing by remember { mutableStateOf(false) }
     val pullToRefreshState = rememberPullToRefreshState()
@@ -115,6 +135,28 @@ fun AnimeScreen(
                         )
                     },
                     content = {
+                        if (continueWatching.isNotEmpty()) {
+                            ContinueWatchingRow(
+                                items = continueWatching,
+                                onItemClicked = { item ->
+                                    onNavigateToMediaItem(
+                                        MediaPage(
+                                            id = item.animeId,
+                                            source = "continue_watching",
+                                            mediaType = MediaType.ANIME.rawValue,
+                                        )
+                                    )
+                                },
+                                onItemRemove = { item ->
+                                    viewModel.removeContinueWatchingItem(item.animeId, item.animeTitle)
+                                },
+                                contentPadding = PaddingValues(
+                                    horizontal = LocalPaddings.current.large,
+                                    vertical = LocalPaddings.current.large / 2,
+                                ) + insetAndNavigationPaddingValues.horizontalOnly
+                            )
+                        }
+
                         lists.fastForEachIndexed { index, resource ->
                             AnimatedContent(
                                 targetState = resource,
@@ -161,8 +203,26 @@ fun AnimeScreen(
                                             ) + insetAndNavigationPaddingValues.horizontalOnly
                                         )
                                     }
-                                    // TODO: Show error UI.
-                                    is Resource.Error -> {}
+                                    is Resource.Error -> {
+                                        MediaRowError(
+                                            title = stringResource(
+                                                when (index) {
+                                                    0 -> R.string.trending_now
+                                                    1 -> R.string.popular_this_season
+                                                    2 -> R.string.upcoming_next_season
+                                                    3 -> R.string.all_time_popular
+                                                    else -> R.string.load_failed
+                                                }
+                                            ),
+                                            onRetry = { viewModel.refresh { isRefreshing = it } },
+                                            modifier = Modifier
+                                                .padding(
+                                                    horizontal = LocalPaddings.current.large,
+                                                    vertical = LocalPaddings.current.large / 2,
+                                                )
+                                                .padding(insetAndNavigationPaddingValues.horizontalOnly)
+                                        )
+                                    }
                                 }
                             }
                         }

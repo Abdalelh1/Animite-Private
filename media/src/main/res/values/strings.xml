@@ -186,5 +186,48 @@
     <string name="in_library">In Library</string>
     <string name="added_to_library">Added to library</string>
     <string name="removed_from_library">Removed from library</string>
+    <string name="swipe_to_adjust">Swipe to adjust</string>
+    <string name="brightness">Brightness</string>
+    <string name="volume">Volume</string>
+    <string name="fast_forward_2x">2.0x Fast Forward</string>
+    <string name="auto_quality">Auto</string>
+    <string name="auto_quality_badge">Auto</string>
+    <string name="quality_title">Quality</string>
+    <string name="audio_tracks_title">Audio Tracks</string>
+    <string name="subtitles_title">Subtitles</string>
+    <string name="subtitles_off">Off</string>
+    <string name="playback_speed_title">Playback Speed</string>
+    <string name="episodes_title">Episodes</string>
+
+    <!-- Episode Filters & Badges -->
+    <string name="filter_all">All</string>
+    <string name="filter_canon">Canon</string>
+    <string name="filter_filler">Filler</string>
+    <string name="filter_mixed">Mixed</string>
+    <string name="filter_specials">Specials</string>
+    <string name="filter_movies">Movies</string>
+    <string name="filter_recaps">Recaps</string>
+
+    <string name="badge_canon">Canon</string>
+    <string name="badge_filler">Filler</string>
+    <string name="badge_mixed">Mixed</string>
+    <string name="badge_special">Special</string>
+    <string name="badge_ova">OVA</string>
+    <string name="badge_ona">ONA</string>
+    <string name="badge_movie">Movie</string>
+    <string name="badge_recap">Recap</string>
+    <string name="badge_unclassified">Unclassified</string>
+
+    <!-- Skip Intro / Outro -->
+    <string name="skip_intro">Skip Intro</string>
+    <string name="skip_outro">Skip Outro</string>
+    <string name="skip_intro_settings">Skip Intro &amp; Outro</string>
+    <string name="custom_intro_title">Custom Intro Timing</string>
+    <string name="set_intro_start">Set Intro Start</string>
+    <string name="set_intro_end">Set Intro End</string>
+    <string name="clear_custom_intro">Reset Intro</string>
+    <string name="no_intro_set">Not configured</string>
+    <string name="error_loading_media">Failed to load anime details</string>
+    <string name="check_connection">Please check your network connection and try again</string>
 </resources>
 

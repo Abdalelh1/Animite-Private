@@ -36,8 +36,8 @@ data object MangaRoute
 data class VideoPlayerRoute(
     val animeTitle: String,
     val episodeNumber: String,
-    val initialQuality: String,
-    val initialUrl: String,
+    val initialQuality: String = "",
+    val initialUrl: String = "",
     val serversJson: String = "[]",
     val episodesJson: String = "[]",
     val providerId: String = "",
@@ -55,5 +55,6 @@ data class EpisodesRoute(
     val totalEpisodes: Int? = null,
     val seasonYear: String? = null,
     val streamingEpisodesJson: String = "{}",
+    val nextAiringEpisode: Int? = null,
 )
 

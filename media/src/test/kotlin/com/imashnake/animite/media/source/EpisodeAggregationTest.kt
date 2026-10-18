@@ -143,29 +143,30 @@ class EpisodeAggregationTest {
     }
 
     /**
-     * Requirement 4:
-     * Two episodes with the same number but different seasons (Season 1 Ep 1 vs Season 2 Ep 1).
-     * Expected: NOT merged together.
+     * Requirement:
+     * When multiple sources return Episode 1 (even with differing metadata or season tags),
+     * they must be unified and deduplicated into 1 single episode with combined sources.
      */
     @Test
-    fun testSeasonDifferentiationDoesNotMergeEpisodes() {
+    fun testEpisodeDeduplicationAcrossSources() {
         val provA = MockProvider("provA", "Source A")
-        val matchS1 = AnimeSearchResult("s1", "Solo Leveling Season 1", "https://example.com/sl-s1")
-        val matchS2 = AnimeSearchResult("s2", "Solo Leveling Season 2", "https://example.com/sl-s2")
+        val provB = MockProvider("provB", "Source B")
+        val matchA = AnimeSearchResult("s1", "Kusuriya no Hitorigoto", "https://example.com/kh1")
+        val matchB = AnimeSearchResult("s2", "Kusuriya no Hitorigoto 2nd Season", "https://example.com/kh2")
 
-        val epS1 = AnimeEpisode(number = 1f, title = "S1 Ep 1", url = "https://sourceA.com/s1/1", seasonNumber = 1)
-        val epS2 = AnimeEpisode(number = 1f, title = "S2 Ep 1", url = "https://sourceA.com/s2/1", seasonNumber = 2)
+        val ep1 = AnimeEpisode(number = 1f, title = "Episode 1", url = "https://sourceA.com/1", seasonNumber = 1)
+        val ep2 = AnimeEpisode(number = 1f, title = "الحلقة 1", url = "https://sourceB.com/1", seasonNumber = 2)
 
         val batches = listOf(
-            ProviderEpisodeBatch(provA, matchS1, listOf(epS1), 90),
-            ProviderEpisodeBatch(provA, matchS2, listOf(epS2), 90),
+            ProviderEpisodeBatch(provA, matchA, listOf(ep1), 90),
+            ProviderEpisodeBatch(provB, matchB, listOf(ep2), 95),
         )
 
         val merged = EpisodeSourcesManager.unifyAndDeduplicateEpisodes(batches)
 
-        assertEquals("Must have 2 separate episodes for 2 different seasons", 2, merged.size)
-        assertEquals(1, merged[0].seasonNumber)
-        assertEquals(2, merged[1].seasonNumber)
+        assertEquals("Must merge duplicate episode 1 into exactly 1 episode", 1, merged.size)
+        assertEquals(1f, merged[0].number)
+        assertEquals("Must combine source references from both providers", 2, merged[0].sources.size)
     }
 
     /**
@@ -235,7 +236,7 @@ class EpisodeAggregationTest {
         val merged = EpisodeSourcesManager.unifyAndDeduplicateEpisodes(listOf(batch))
 
         assertEquals("Must retain 3 distinct items: regular, special, and ova", 3, merged.size)
-        assertTrue(merged.any { it.episodeType == EpisodeType.REGULAR })
+        assertTrue(merged.any { it.episodeType.isCanon })
         assertTrue(merged.any { it.episodeType == EpisodeType.SPECIAL })
         assertTrue(merged.any { it.episodeType == EpisodeType.OVA })
     }

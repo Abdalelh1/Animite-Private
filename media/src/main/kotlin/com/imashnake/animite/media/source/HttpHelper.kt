@@ -12,6 +12,15 @@ import java.net.URL
 object HttpHelper {
     const val USER_AGENT = "Mozilla/5.0 (Linux; Android 12; Pixel 6 Build/SD1A.210817.036) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.6099.144 Mobile Safari/537.36"
 
+    fun isCloudflareChallenge(html: String): Boolean {
+        return html.contains("Just a moment...") ||
+                html.contains("cf-browser-verification") ||
+                html.contains("challenge-running") ||
+                html.contains("turnstile") ||
+                html.contains("Attention Required! | Cloudflare") ||
+                html.contains("cf-chl-bypass")
+    }
+
     suspend fun getHtml(urlString: String, referer: String? = null, headers: Map<String, String> = emptyMap()): String = withContext(Dispatchers.IO) {
         val url = URL(urlString)
         val conn = (url.openConnection() as HttpURLConnection).apply {
@@ -28,7 +37,11 @@ object HttpHelper {
 
         val responseCode = conn.responseCode
         android.util.Log.d("ANIMITE_DIAG", "HTTP_RESPONSE: code=$responseCode for host=${url.host}")
-        val stream = if (responseCode in 200..399) conn.inputStream else conn.errorStream ?: conn.inputStream
+        val stream = if (responseCode in 200..399) {
+            conn.inputStream
+        } else {
+            conn.errorStream ?: throw java.io.IOException("HTTP $responseCode from ${url.host}")
+        }
         BufferedReader(InputStreamReader(stream)).use { reader ->
             val sb = java.lang.StringBuilder()
             var line: String?
@@ -39,8 +52,12 @@ object HttpHelper {
         }
     }
 
-    suspend fun getDocument(urlString: String, referer: String? = null): Document = withContext(Dispatchers.IO) {
-        val html = getHtml(urlString, referer)
+    suspend fun getDocument(
+        urlString: String,
+        referer: String? = null,
+        headers: Map<String, String> = emptyMap(),
+    ): Document = withContext(Dispatchers.IO) {
+        val html = getHtml(urlString, referer, headers)
         Jsoup.parse(html, urlString)
     }
 

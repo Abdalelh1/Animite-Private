@@ -34,7 +34,7 @@ object Anime3rbHtmlParser {
     private const val BASE_URL = "https://anime3rb.com"
     private val numberRegex = Regex("""(\d+(?:\.\d+)?)""")
     private val videoUrlRegex = Regex("""(?:&quot;|")video_url(?:&quot;|")\s*:\s*(?:&quot;|")((?:https?:)?\\?/\\?/[^"]+?)(?:&quot;|")""")
-    private val videoSourcesRegex = Regex("""var\s+video_sources\s*=\s*(\[\s*\{.*?\}\s*\]);""", RegexOption.DOT_MATCHES_ALL)
+    private val videoSourcesRegex = Regex("""var\s+video_sources\s*=\s*(\[[\s\S]*?\]);""")
 
     fun resolveUrl(url: String, base: String = BASE_URL): String {
         return try {
@@ -71,28 +71,67 @@ object Anime3rbHtmlParser {
     fun parsePlayerSources(playerHtml: String, playerUrl: String): List<AnimeStreamServer> {
         val servers = mutableListOf<AnimeStreamServer>()
 
-        val match = videoSourcesRegex.find(playerHtml)
-        if (match != null) {
+        val matches = videoSourcesRegex.findAll(playerHtml)
+        for (match in matches) {
+            val jsonText = match.groupValues[1]
+            if (jsonText.trim() == "[]") continue
+            // Try kotlinx.serialization first for unit test & android independence
+            var parsedViaJson = false
             try {
-                val jsonArray = org.json.JSONArray(match.groupValues[1])
-                for (i in 0 until jsonArray.length()) {
-                    val obj = jsonArray.getJSONObject(i)
-                    val rawSrc = obj.optString("src").trim()
-                    val label = obj.optString("label").ifEmpty {
-                        val res = obj.optString("res")
-                        if (res.isNotEmpty()) "${res}p" else "MP4"
-                    }
-                    val isPremium = obj.optBoolean("premium", false)
+                val element = kotlinx.serialization.json.Json.parseToJsonElement(jsonText)
+                val jsonArray = element as? kotlinx.serialization.json.JsonArray
+                if (jsonArray != null) {
+                    for (item in jsonArray) {
+                        val obj = item as? kotlinx.serialization.json.JsonObject ?: continue
+                        val rawSrc = (obj["src"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.trim() ?: ""
+                        val res = (obj["res"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+                        val label = (obj["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.takeIf { it.isNotBlank() }
+                            ?: if (res.isNotEmpty()) "${res}p" else "1080p FHD"
+                        val isPremium = (obj["premium"] as? kotlinx.serialization.json.JsonPrimitive)?.content?.equals("true", ignoreCase = true) ?: false
 
-                    if (rawSrc.isNotEmpty() && !isPremium) {
-                        val cleanSrc = rawSrc.replace("\\/", "/")
+                        if (rawSrc.isNotEmpty() && !isPremium) {
+                            val cleanSrc = rawSrc.replace("\\/", "/")
+                            val headers = mapOf(
+                                "User-Agent" to HttpHelper.USER_AGENT,
+                                "Referer" to "https://video.vid3rb.com/",
+                            )
+                            servers.add(
+                                AnimeStreamServer(
+                                    name = "سيرفر مباشر ($label)",
+                                    url = cleanSrc,
+                                    isDirectVideo = true,
+                                    quality = label,
+                                    linkType = StreamLinkType.DIRECT_VIDEO,
+                                    headers = headers,
+                                )
+                            )
+                            parsedViaJson = true
+                        }
+                    }
+                }
+            } catch (_: Exception) {
+            }
+
+            // Fallback regex in case JSON parsing encounters escaping or strictness errors
+            if (!parsedViaJson) {
+                val objectRegex = Regex("""\{([^{}]+)\}""")
+                for (m in objectRegex.findAll(jsonText)) {
+                    val block = m.groupValues[1]
+                    val src = Regex(""""src"\s*:\s*"([^"]+)"""").find(block)?.groupValues?.get(1) ?: ""
+                    val isPremium = block.contains(""""premium"\s*:\s*true""".toRegex())
+                    val label = Regex(""""label"\s*:\s*"([^"]+)"""").find(block)?.groupValues?.get(1)
+                        ?: Regex(""""res"\s*:\s*"([^"]+)"""").find(block)?.groupValues?.get(1)?.let { "${it}p" }
+                        ?: "1080p FHD"
+
+                    if (src.isNotEmpty() && !isPremium) {
+                        val cleanSrc = src.replace("\\/", "/")
                         val headers = mapOf(
                             "User-Agent" to HttpHelper.USER_AGENT,
                             "Referer" to "https://video.vid3rb.com/",
                         )
                         servers.add(
                             AnimeStreamServer(
-                                name = "Anime3rb ($label)",
+                                name = "سيرفر مباشر ($label)",
                                 url = cleanSrc,
                                 isDirectVideo = true,
                                 quality = label,
@@ -102,7 +141,6 @@ object Anime3rbHtmlParser {
                         )
                     }
                 }
-            } catch (_: Exception) {
             }
         }
 
@@ -110,7 +148,7 @@ object Anime3rbHtmlParser {
         if (!servers.any { it.url == playerUrl }) {
             servers.add(
                 AnimeStreamServer(
-                    name = "مشغل Vid3rb المدمج (ويب)",
+                    name = "مشغل ويب",
                     url = playerUrl,
                     isDirectVideo = false,
                     quality = "ويب",
@@ -265,7 +303,7 @@ object Anime3rbHtmlParser {
         doc.select("iframe[src]").forEach { iframe ->
             val src = iframe.attr("abs:src").ifEmpty { resolveUrl(iframe.attr("src")) }
             if (src.isNotEmpty() && !src.startsWith("about:") && !servers.any { it.url == src }) {
-                val isDirect = src.contains(".mp4") || src.contains(".m3u8")
+                val isDirect = (src.endsWith(".mp4") || src.contains(".mp4?") || src.contains(".m3u8") || src.endsWith(".mpd")) && !src.contains("mp4upload.com")
                 servers.add(
                     AnimeStreamServer(
                         name = "مشغل مضمن (Iframe)",
@@ -281,7 +319,7 @@ object Anime3rbHtmlParser {
         // 4. If schemaEmbedUrl was found and not already in servers
         schemaEmbedUrl?.let { embedUrl ->
             if (!servers.any { it.url == embedUrl }) {
-                val isDirect = embedUrl.contains(".mp4") || embedUrl.contains(".m3u8")
+                val isDirect = (embedUrl.endsWith(".mp4") || embedUrl.contains(".mp4?") || embedUrl.contains(".m3u8") || embedUrl.endsWith(".mpd")) && !embedUrl.contains("mp4upload.com")
                 servers.add(
                     AnimeStreamServer(
                         name = schemaName ?: "مشغل Anime3rb الرسمي",

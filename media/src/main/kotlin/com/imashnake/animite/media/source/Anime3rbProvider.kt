@@ -4,7 +4,7 @@ import java.net.URLEncoder
 
 class Anime3rbProvider : EpisodeSourceProvider {
     override val id: String = "anime3rb"
-    override val name: String = "Anime3rb (عربي)"
+    override val name: String = "المصدر 2"
     override val language: String = "ar"
 
     private val baseUrl = "https://anime3rb.com"
@@ -51,10 +51,13 @@ class Anime3rbProvider : EpisodeSourceProvider {
         // 2. Search endpoint: /titles?search={query}
         try {
             val searchUrl = "$baseUrl/titles?search=${URLEncoder.encode(query, "UTF-8")}"
-            val doc = HttpHelper.getDocument(searchUrl)
-            val searchResults = Anime3rbHtmlParser.parseSearchResults(doc)
-            if (searchResults.isNotEmpty()) {
-                results.addAll(searchResults)
+            val html = HttpHelper.getHtml(searchUrl)
+            if (!HttpHelper.isCloudflareChallenge(html)) {
+                val doc = org.jsoup.Jsoup.parse(html, searchUrl)
+                val searchResults = Anime3rbHtmlParser.parseSearchResults(doc)
+                if (searchResults.isNotEmpty()) {
+                    results.addAll(searchResults)
+                }
             }
         } catch (_: Exception) {
         }
@@ -64,7 +67,9 @@ class Anime3rbProvider : EpisodeSourceProvider {
 
     override suspend fun getEpisodes(animeUrl: String): List<AnimeEpisode> {
         return try {
-            val doc = HttpHelper.getDocument(animeUrl)
+            val html = HttpHelper.getHtml(animeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) return emptyList()
+            val doc = org.jsoup.Jsoup.parse(html, animeUrl)
             Anime3rbHtmlParser.parseEpisodesList(doc)
         } catch (e: Exception) {
             emptyList()
@@ -75,6 +80,7 @@ class Anime3rbProvider : EpisodeSourceProvider {
         return try {
             android.util.Log.i("ANIMITE_DIAG", "ANIME3RB_GET_SERVERS_START: fetching episode page")
             val episodeHtml = HttpHelper.getHtml(episodeUrl)
+            if (HttpHelper.isCloudflareChallenge(episodeHtml)) return emptyList()
             android.util.Log.i("ANIMITE_DIAG", "ANIME3RB_EPISODE_HTML: length=${episodeHtml.length}")
             val servers = mutableListOf<AnimeStreamServer>()
 
@@ -92,7 +98,7 @@ class Anime3rbProvider : EpisodeSourceProvider {
                     android.util.Log.e("ANIMITE_DIAG", "ANIME3RB_PLAYER_FETCH_ERROR: ${pe.javaClass.simpleName}: ${pe.message}")
                     servers.add(
                         AnimeStreamServer(
-                            name = "مشغل Vid3rb المدمج (ويب)",
+                            name = "مشغل ويب",
                             url = playerUrl,
                             isDirectVideo = false,
                         )

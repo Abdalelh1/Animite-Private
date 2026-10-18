@@ -187,5 +187,48 @@
     <string name="in_library">في المكتبة</string>
     <string name="added_to_library">تمت الإضافة إلى المكتبة</string>
     <string name="removed_from_library">تمت الإزالة من المكتبة</string>
+    <string name="swipe_to_adjust">اسحب للتعديل</string>
+    <string name="brightness">السطوع</string>
+    <string name="volume">الصوت</string>
+    <string name="fast_forward_2x">تسريع 2.0x</string>
+    <string name="auto_quality">تلقائي</string>
+    <string name="auto_quality_badge">تلقائي</string>
+    <string name="quality_title">الجودة</string>
+    <string name="audio_tracks_title">المسارات الصوتية</string>
+    <string name="subtitles_title">الترجمة</string>
+    <string name="subtitles_off">إيقاف</string>
+    <string name="playback_speed_title">سرعة التشغيل</string>
+    <string name="episodes_title">الحلقات</string>
+
+    <!-- فلترة وشارات الحلقات -->
+    <string name="filter_all">الكل</string>
+    <string name="filter_canon">الأساسي</string>
+    <string name="filter_filler">الفلر</string>
+    <string name="filter_mixed">المختلط</string>
+    <string name="filter_specials">الخاص</string>
+    <string name="filter_movies">الأفلام</string>
+    <string name="filter_recaps">الملخصات</string>
+
+    <string name="badge_canon">أساسي</string>
+    <string name="badge_filler">فلر</string>
+    <string name="badge_mixed">مختلط</string>
+    <string name="badge_special">خاص</string>
+    <string name="badge_ova">أوفا</string>
+    <string name="badge_ona">أونا</string>
+    <string name="badge_movie">فيلم</string>
+    <string name="badge_recap">ملخص</string>
+    <string name="badge_unclassified">غير مصنف</string>
+
+    <!-- تخطي المقدمة والنهاية -->
+    <string name="skip_intro">تخطي المقدمة</string>
+    <string name="skip_outro">تخطي النهاية</string>
+    <string name="skip_intro_settings">تخطي المقدمة والنهاية</string>
+    <string name="custom_intro_title">توقيت المقدمة المخصص</string>
+    <string name="set_intro_start">تعيين بداية المقدمة</string>
+    <string name="set_intro_end">تعيين نهاية المقدمة</string>
+    <string name="clear_custom_intro">إعادة تعيين المقدمة</string>
+    <string name="no_intro_set">غير معينة</string>
+    <string name="error_loading_media">تعذر تحميل تفاصيل العمل</string>
+    <string name="check_connection">يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً</string>
 </resources>
 

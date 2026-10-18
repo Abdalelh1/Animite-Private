@@ -20,6 +20,7 @@ import kotlinx.coroutines.flow.filterNotNull
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
@@ -60,4 +61,10 @@ class MediaPageViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(1000),
         initialValue = Resource.loading()
     )
+
+    fun retry() {
+        viewModelScope.launch {
+            refreshTrigger.emit(Unit)
+        }
+    }
 }

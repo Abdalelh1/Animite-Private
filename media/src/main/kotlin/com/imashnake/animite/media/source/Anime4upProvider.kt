@@ -6,7 +6,7 @@ import java.net.URLEncoder
 
 class Anime4upProvider : EpisodeSourceProvider {
     override val id: String = "anime4up"
-    override val name: String = "Anime4Up (عربي)"
+    override val name: String = "المصدر 1"
     override val language: String = "ar"
 
     private val baseUrl = "https://w1.anime4up.rest"
@@ -17,14 +17,22 @@ class Anime4upProvider : EpisodeSourceProvider {
 
         try {
             val searchUrl = "$baseUrl/?search_param=animes&s=${URLEncoder.encode(query, "UTF-8")}"
-            val doc = HttpHelper.getDocument(searchUrl)
+            val html = HttpHelper.getHtml(searchUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "ANIME4UP_SEARCH: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, searchUrl)
             parseSearchResults(doc, results)
 
             // If empty, try simple query
             if (results.isEmpty()) {
                 val simpleSearchUrl = "$baseUrl/?s=${URLEncoder.encode(query, "UTF-8")}"
-                val doc2 = HttpHelper.getDocument(simpleSearchUrl)
-                parseSearchResults(doc2, results)
+                val html2 = HttpHelper.getHtml(simpleSearchUrl)
+                if (!HttpHelper.isCloudflareChallenge(html2)) {
+                    val doc2 = org.jsoup.Jsoup.parse(html2, simpleSearchUrl)
+                    parseSearchResults(doc2, results)
+                }
             }
         } catch (e: Exception) {
             Log.e("ANIMITE_DIAG", "ANIME4UP_SEARCH_ERROR: ${e.message}")
@@ -67,7 +75,12 @@ class Anime4upProvider : EpisodeSourceProvider {
     override suspend fun getEpisodes(animeUrl: String): List<AnimeEpisode> {
         val episodes = mutableListOf<AnimeEpisode>()
         try {
-            val mainDoc = HttpHelper.getDocument(animeUrl)
+            val html = HttpHelper.getHtml(animeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "ANIME4UP_EPISODES: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val mainDoc = org.jsoup.Jsoup.parse(html, animeUrl)
             extractEpisodesFromDocument(mainDoc, episodes)
 
             // Check if there are other pages or order toggle (e.g., ?ep_order=asc)
@@ -161,25 +174,30 @@ class Anime4upProvider : EpisodeSourceProvider {
         val servers = mutableListOf<AnimeStreamServer>()
 
         try {
-            val doc = HttpHelper.getDocument(episodeUrl)
+            val html = HttpHelper.getHtml(episodeUrl)
+            if (HttpHelper.isCloudflareChallenge(html)) {
+                Log.w("ANIMITE_DIAG", "ANIME4UP_SERVERS: Cloudflare challenge detected, skipping")
+                return emptyList()
+            }
+            val doc = org.jsoup.Jsoup.parse(html, episodeUrl)
 
             // 1. Embedded iframes
             doc.select("iframe[src]").forEach { iframe ->
                 val src = iframe.attr("abs:src")
                 if (src.startsWith("http") && !src.contains("acceptable.a-ads") && !src.contains("google") && !src.contains("facebook")) {
                     val serverName = when {
-                        src.contains("share4max") || src.contains("megamax") -> "سيرفر MegaMax"
-                        src.contains("77mg02b") || src.contains("Anime4up-S1") -> "سيرفر Anime4Up 1 (سريع)"
-                        src.contains("Anime4up-S2") -> "سيرفر Anime4Up 2"
-                        src.contains("mp4upload") -> "سيرفر Mp4Upload"
-                        src.contains("mega.nz") -> "سيرفر Mega"
-                        src.contains("voe.sx") -> "سيرفر Voe"
-                        src.contains("playmogo") || src.contains("dood") -> "سيرفر DoodStream"
-                        src.contains("vidbom") -> "سيرفر Vidbom"
+                        src.contains("share4max") || src.contains("megamax") -> "سيرفر سريع 1 (1080p)"
+                        src.contains("77mg02b") || src.contains("Anime4up-S1") -> "سيرفر رئيسي 1 (720p)"
+                        src.contains("Anime4up-S2") -> "سيرفر رئيسي 2 (720p)"
+                        src.contains("mp4upload") -> "سيرفر مباشر (1080p)"
+                        src.contains("mega.nz") -> "سيرفر خارجي"
+                        src.contains("voe.sx") -> "سيرفر بديل 1 (480p)"
+                        src.contains("playmogo") || src.contains("dood") -> "سيرفر بديل 2"
+                        src.contains("vidbom") -> "سيرفر بديل 3"
                         else -> "مشغل مدمج"
                     }
 
-                    val isDirect = src.contains(".mp4") || src.contains(".m3u8")
+                    val isDirect = (src.endsWith(".mp4") || src.contains(".mp4?") || src.contains(".m3u8") || src.endsWith(".mpd")) && !src.contains("mp4upload.com")
                     servers.add(
                         AnimeStreamServer(
                             name = serverName,
@@ -197,7 +215,7 @@ class Anime4upProvider : EpisodeSourceProvider {
                 val href = link.attr("abs:href")
                 val text = link.text().trim()
                 if (href.startsWith("http") && servers.none { it.url == href }) {
-                    val isDirect = href.endsWith(".mp4")
+                    val isDirect = href.endsWith(".mp4") && !href.contains("mp4upload.com")
                     servers.add(
                         AnimeStreamServer(
                             name = "تحميل مباشر ($text)",
@@ -210,7 +228,20 @@ class Anime4upProvider : EpisodeSourceProvider {
                 }
             }
 
-            // 3. Try to resolve direct video for mp4upload if present
+            // 3. Resolve Share4max / Megamax iframes into mirrors and direct streams
+            val share4maxServer = servers.firstOrNull { it.url.contains("share4max.com") || it.url.contains("megamax.me") }
+            if (share4maxServer != null) {
+                try {
+                    val resolvedMirrors = resolveShare4max(share4maxServer.url, episodeUrl)
+                    if (resolvedMirrors.isNotEmpty()) {
+                        servers.addAll(0, resolvedMirrors)
+                    }
+                } catch (se: Exception) {
+                    Log.e("ANIMITE_DIAG", "SHARE4MAX_EXTRACT_ERROR: ${se.message}")
+                }
+            }
+
+            // 4. Try to resolve direct video for mp4upload if present
             val mp4UploadServer = servers.firstOrNull { it.url.contains("mp4upload.com") }
             if (mp4UploadServer != null) {
                 try {
@@ -222,8 +253,12 @@ class Anime4upProvider : EpisodeSourceProvider {
                                 name = "Mp4Upload مباشر",
                                 url = resolved,
                                 isDirectVideo = true,
-                                quality = "1080p",
+                                quality = "1080p FHD",
                                 linkType = StreamLinkType.DIRECT_VIDEO,
+                                headers = mapOf(
+                                    "User-Agent" to HttpHelper.USER_AGENT,
+                                    "Referer" to "https://www.mp4upload.com/",
+                                ),
                             )
                         )
                     }
@@ -236,10 +271,75 @@ class Anime4upProvider : EpisodeSourceProvider {
         return servers
     }
 
+    private suspend fun resolveShare4max(iframeUrl: String, episodeUrl: String): List<AnimeStreamServer> {
+        val mirrors = mutableListOf<AnimeStreamServer>()
+        try {
+            val html = HttpHelper.getHtml(
+                urlString = iframeUrl,
+                referer = episodeUrl,
+                headers = mapOf(
+                    "X-Inertia" to "true",
+                    "X-Inertia-Partial-Component" to "files/mirror/video",
+                    "X-Inertia-Partial-Data" to "streams",
+                    "X-Inertia-Version" to "7a7eafc95b15a2110f8f43bd7706b997",
+                    "X-Requested-With" to "XMLHttpRequest",
+                )
+            )
+
+            val jsonText = if (html.trim().startsWith("{")) {
+                html
+            } else {
+                Regex("""data-page=["']([^"']+)["']""").find(html)?.groupValues?.get(1)?.let {
+                    org.jsoup.parser.Parser.unescapeEntities(it, false)
+                } ?: ""
+            }
+
+            if (jsonText.isNotEmpty()) {
+                val element = kotlinx.serialization.json.Json.parseToJsonElement(jsonText)
+                val props = (element as? kotlinx.serialization.json.JsonObject)?.get("props") as? kotlinx.serialization.json.JsonObject
+                val streams = props?.get("streams") as? kotlinx.serialization.json.JsonObject
+                val data = streams?.get("data") as? kotlinx.serialization.json.JsonArray
+                data?.forEach { streamItem ->
+                    val sObj = streamItem as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                    val label = (sObj["label"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "1080p FHD"
+                    val mirrorList = sObj["mirrors"] as? kotlinx.serialization.json.JsonArray
+                    mirrorList?.forEach { mItem ->
+                        val mObj = mItem as? kotlinx.serialization.json.JsonObject ?: return@forEach
+                        val driver = (mObj["driver"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: "mirror"
+                        var link = (mObj["link"] as? kotlinx.serialization.json.JsonPrimitive)?.content ?: ""
+                        if (link.startsWith("//")) link = "https:$link"
+
+                        if (link.startsWith("http")) {
+                            val isDirect = link.endsWith(".mp4") || link.contains(".m3u8")
+                            mirrors.add(
+                                AnimeStreamServer(
+                                    name = "سيرفر $driver ($label)",
+                                    url = link,
+                                    isDirectVideo = isDirect,
+                                    quality = label,
+                                    linkType = if (isDirect) StreamLinkType.DIRECT_VIDEO else StreamLinkType.WEB_PAGE,
+                                    headers = mapOf("Referer" to iframeUrl),
+                                )
+                            )
+                        }
+                    }
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("ANIMITE_DIAG", "SHARE4MAX_RESOLVE_FAIL: ${e.message}")
+        }
+        return mirrors
+    }
+
     private suspend fun resolveMp4Upload(embedUrl: String): String? {
-        val html = HttpHelper.getHtml(embedUrl, referer = baseUrl)
+        val cleanUrl = if (embedUrl.contains("/embed-")) embedUrl else {
+            val id = embedUrl.substringAfterLast('/').substringBefore(".html")
+            "https://www.mp4upload.com/embed-$id.html"
+        }
+        val html = HttpHelper.getHtml(cleanUrl, referer = "https://www.mp4upload.com/")
         val match = Regex("""(?i)player\.src\(\s*\{\s*type:\s*["'][^"']+["'],\s*src:\s*["']([^"']+\.mp4[^"']*)["']""").find(html)
             ?: Regex("""(?i)src:\s*["'](https?://[^"']+\.mp4[^"']*)["']""").find(html)
+            ?: Regex("""['"](https?://[^'"]*mp4upload[^'"]*\.mp4[^'"]*)['"]""").find(html)
         return match?.groupValues?.get(1)
     }
 }

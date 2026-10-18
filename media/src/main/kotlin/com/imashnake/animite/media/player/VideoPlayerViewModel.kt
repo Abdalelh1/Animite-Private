@@ -19,8 +19,16 @@ import com.imashnake.animite.media.player.cache.MediaCacheManager
 import com.imashnake.animite.media.source.AnimeEpisode
 import com.imashnake.animite.media.source.AnimeStreamServer
 import com.imashnake.animite.media.source.EpisodeSourcesManager
+import com.imashnake.animite.media.source.HttpHelper
+import com.imashnake.animite.media.source.SkipInterval
+import com.imashnake.animite.media.source.SmartStreamEngine
+import com.imashnake.animite.media.source.UnifiedQualityOption
+import com.imashnake.animite.media.source.classification.EpisodeClassificationRepository
+import androidx.media3.common.MimeTypes
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.util.Locale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -36,6 +44,14 @@ data class MediaTrackUiModel(
     val name: String,
     val language: String? = null,
     val isSelected: Boolean = false,
+)
+
+data class EpisodeUiModel(
+    val number: String,
+    val title: String,
+    val url: String,
+    val durationText: String = "24:00",
+    val thumbnail: String? = null,
 )
 
 data class VideoTrackUiModel(
@@ -54,6 +70,7 @@ class VideoPlayerViewModel @Inject constructor(
 ) : ViewModel() {
 
     private var exoPlayerInstance: ExoPlayer? = null
+    private var bandwidthMeterInstance: DefaultBandwidthMeter? = null
     var activeServerUrl: String? = null
         private set
 
@@ -84,6 +101,22 @@ class VideoPlayerViewModel @Inject constructor(
     private val _isVideoAdaptiveAuto = MutableStateFlow(true)
     val isVideoAdaptiveAuto = _isVideoAdaptiveAuto.asStateFlow()
 
+    private val _isAutoQualityMode = MutableStateFlow(true)
+    val isAutoQualityMode = _isAutoQualityMode.asStateFlow()
+
+    private val _effectiveQuality = MutableStateFlow("720p HD")
+    val effectiveQuality = _effectiveQuality.asStateFlow()
+
+    private val _skipIntervals = MutableStateFlow<List<SkipInterval>>(emptyList())
+    val skipIntervals = _skipIntervals.asStateFlow()
+
+    private val _isSkipIntroEnabled = MutableStateFlow(true)
+    val isSkipIntroEnabled = _isSkipIntroEnabled.asStateFlow()
+
+    private var lastRebufferTimestamp = 0L
+    private var rebufferCountInWindow = 0
+    private var lastQualitySwitchTimestamp = 0L
+
     private val _isScreenLocked = MutableStateFlow(false)
     val isScreenLocked = _isScreenLocked.asStateFlow()
 
@@ -93,6 +126,108 @@ class VideoPlayerViewModel @Inject constructor(
 
     private val _sleepTimerSecondsLeft = MutableStateFlow<Int?>(null)
     val sleepTimerSecondsLeft = _sleepTimerSecondsLeft.asStateFlow()
+
+    fun setAutoQualityMode(enabled: Boolean) {
+        _isAutoQualityMode.value = enabled
+        if (enabled) {
+            selectVideoTrack(null)
+        }
+    }
+
+    fun toggleSkipIntro(enabled: Boolean) {
+        _isSkipIntroEnabled.value = enabled
+    }
+
+    fun setSkipIntervals(intervals: List<SkipInterval>) {
+        _skipIntervals.value = intervals
+    }
+
+    fun fetchAniSkipIntervals(malId: Int, episodeNumber: Float) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val list = EpisodeClassificationRepository.fetchSkipIntervals(malId, episodeNumber)
+            _skipIntervals.value = list
+        }
+    }
+
+    fun loadSkipIntervals(
+        animeTitles: List<String>,
+        episodeNumber: Float,
+        customInterval: Pair<Long, Long>? = null,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val malId = EpisodeClassificationRepository.resolveMalId(animeTitles)
+            val list = if (malId > 0) {
+                EpisodeClassificationRepository.fetchSkipIntervals(malId, episodeNumber)
+            } else {
+                emptyList()
+            }
+            if (list.isNotEmpty()) {
+                _skipIntervals.value = list
+            } else if (customInterval != null && customInterval.second > customInterval.first) {
+                _skipIntervals.value = listOf(
+                    SkipInterval(
+                        startTimeMs = customInterval.first,
+                        endTimeMs = customInterval.second,
+                        skipType = "op",
+                    )
+                )
+            } else {
+                _skipIntervals.value = emptyList()
+            }
+        }
+    }
+
+    fun recordPlaybackRebuffer() {
+        val now = System.currentTimeMillis()
+        if (now - lastRebufferTimestamp < 15_000L) {
+            rebufferCountInWindow++
+        } else {
+            rebufferCountInWindow = 1
+        }
+        lastRebufferTimestamp = now
+    }
+
+    fun evaluateDiscreteQualityAdaptive(
+        availableOptions: List<UnifiedQualityOption>,
+        onSwitchStream: (AnimeStreamServer) -> Unit,
+    ) {
+        if (!_isAutoQualityMode.value || availableOptions.size <= 1) return
+        val now = System.currentTimeMillis()
+        if (now - lastQualitySwitchTimestamp < 15_000L) return
+
+        val player = exoPlayerInstance ?: return
+        val currentServerUrl = activeServerUrl ?: return
+        val currentOption = availableOptions.firstOrNull { it.primaryServer.url == currentServerUrl || it.fallbackServers.any { f -> f.url == currentServerUrl } } ?: return
+        val currentRank = currentOption.quality
+
+        val currentBufferMs = player.totalBufferedDuration
+        val isDepleted = currentBufferMs < 2000L && player.playbackState == Player.STATE_BUFFERING
+
+        if (isDepleted || rebufferCountInWindow >= 2) {
+            val lowerOptions = availableOptions.filter { it.quality.height < currentRank.height }.sortedByDescending { it.quality.height }
+            val targetLower = lowerOptions.firstOrNull()
+            if (targetLower != null) {
+                lastQualitySwitchTimestamp = now
+                rebufferCountInWindow = 0
+                _effectiveQuality.value = targetLower.quality.canonicalName
+                onSwitchStream(targetLower.primaryServer)
+                return
+            }
+        }
+
+        val estimateBps = bandwidthMeterInstance?.bitrateEstimate ?: 0L
+        val isStable = currentBufferMs > 15_000L && player.playbackState == Player.STATE_READY
+        if (isStable && estimateBps > 4_500_000L) {
+            val higherOptions = availableOptions.filter { it.quality.height > currentRank.height }.sortedBy { it.quality.height }
+            val targetHigher = higherOptions.firstOrNull()
+            if (targetHigher != null) {
+                lastQualitySwitchTimestamp = now
+                _effectiveQuality.value = targetHigher.quality.canonicalName
+                onSwitchStream(targetHigher.primaryServer)
+                return
+            }
+        }
+    }
 
     fun setSleepTimer(minutes: Int?) {
         sleepTimerJob?.cancel()
@@ -148,6 +283,33 @@ class VideoPlayerViewModel @Inject constructor(
         }
     }
 
+    fun reExtractOrFallback(
+        episode: AnimeEpisode,
+        onSuccess: (List<AnimeStreamServer>, AnimeStreamServer) -> Unit,
+        onError: (String) -> Unit,
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val refreshed = SmartStreamEngine.reExtractExpiredStream(
+                    episode = episode,
+                    animeTitle = episode.title ?: "",
+                )
+                withContext(Dispatchers.Main) {
+                    if (refreshed.success && refreshed.allDirectServers.isNotEmpty()) {
+                        val chosen = refreshed.bestStream ?: refreshed.allDirectServers.first()
+                        onSuccess(refreshed.allDirectServers, chosen)
+                    } else {
+                        onError(refreshed.errorMessage ?: "تعذر تجديد روابط التشغيل لهذه الحلقة")
+                    }
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    onError(e.localizedMessage ?: "حدث خطأ أثناء تجديد روابط التشغيل")
+                }
+            }
+        }
+    }
+
     fun loadEpisodeStream(
         providerId: String,
         episodeUrl: String,
@@ -183,12 +345,17 @@ class VideoPlayerViewModel @Inject constructor(
                 /* bufferForPlaybackMs = */ 2_500,
                 /* bufferForPlaybackAfterRebufferMs = */ 5_000,
             )
+            .setBackBuffer(30_000, /* retainBackBufferFromKeyframe = */ true)
             .setPrioritizeTimeOverSizeThresholds(true)
             .build()
+
+        val bMeter = DefaultBandwidthMeter.Builder(appContext).build()
+        bandwidthMeterInstance = bMeter
 
         val player = ExoPlayer.Builder(appContext)
             .setMediaSourceFactory(mediaSourceFactory)
             .setLoadControl(loadControl)
+            .setBandwidthMeter(bMeter)
             .setSeekBackIncrementMs(10000)
             .setSeekForwardIncrementMs(10000)
             .build()
@@ -338,12 +505,39 @@ class VideoPlayerViewModel @Inject constructor(
             return
         }
         activeServerUrl = server.url
+        _effectiveQuality.value = server.quality
 
-        val cacheFactory = cacheManager.createCacheDataSourceFactory(server.headers)
+        val effectiveHeaders = server.headers.toMutableMap()
+        if (!effectiveHeaders.containsKey("User-Agent")) {
+            effectiveHeaders["User-Agent"] = HttpHelper.USER_AGENT
+        }
+        if (!effectiveHeaders.containsKey("Referer")) {
+            val urlLower = server.url.lowercase(Locale.ROOT)
+            when {
+                urlLower.contains("mp4upload.com") -> effectiveHeaders["Referer"] = "https://www.mp4upload.com/"
+                urlLower.contains("vid3rb.com") -> effectiveHeaders["Referer"] = "https://anime3rb.com/"
+                urlLower.contains("anime4up") -> effectiveHeaders["Referer"] = "https://w1.anime4up.rest/"
+            }
+        }
+
+        val cacheFactory = cacheManager.createCacheDataSourceFactory(effectiveHeaders)
         val mediaSourceFactory = DefaultMediaSourceFactory(appContext)
             .setDataSourceFactory(cacheFactory)
 
-        val mediaSource = mediaSourceFactory.createMediaSource(MediaItem.fromUri(server.url))
+        val mimeType = when {
+            server.url.contains(".m3u8", ignoreCase = true) -> MimeTypes.APPLICATION_M3U8
+            server.url.contains(".mpd", ignoreCase = true) -> MimeTypes.APPLICATION_MPD
+            server.url.contains(".mp4", ignoreCase = true) || server.url.contains("video.vid3rb.com/video/") -> MimeTypes.VIDEO_MP4
+            else -> null
+        }
+
+        val mediaItemBuilder = MediaItem.Builder().setUri(server.url)
+        if (mimeType != null) {
+            mediaItemBuilder.setMimeType(mimeType)
+        }
+        val mediaItem = mediaItemBuilder.build()
+
+        val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
         player.setMediaSource(mediaSource, positionMs)
         player.prepare()
         player.playWhenReady = playWhenReady

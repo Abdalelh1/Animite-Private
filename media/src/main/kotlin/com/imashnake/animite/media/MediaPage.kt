@@ -140,6 +140,7 @@ import com.imashnake.animite.core.ui.Constants
 import com.imashnake.animite.core.ui.LocalPaddings
 import com.imashnake.animite.core.ui.component.BottomSheet
 import com.imashnake.animite.core.ui.component.CharacterCard
+import com.imashnake.animite.core.ui.component.FullScreenError
 import com.imashnake.animite.core.ui.component.Chip
 import com.imashnake.animite.core.ui.component.ChipFlowRow
 import com.imashnake.animite.core.ui.component.LoadingMediaSmallRow
@@ -347,6 +348,7 @@ fun MediaPage(
                                                                 totalEpisodes = media.episodes,
                                                                 seasonYear = media.year,
                                                                 streamingEpisodesJson = streamingEpisodesJson,
+                                                                nextAiringEpisode = media.nextAiring?.episode,
                                                             )
                                                         )
                                                     },
@@ -477,6 +479,7 @@ fun MediaPage(
                                                                 totalEpisodes = media.episodes,
                                                                 seasonYear = media.year,
                                                                 streamingEpisodesJson = streamingEpisodesJson,
+                                                                nextAiringEpisode = media.nextAiring?.episode,
                                                             )
                                                         )
                                                     },
@@ -554,8 +557,16 @@ fun MediaPage(
                                 )
                             }
 
-                            // TODO: Error state.
-                            is Resource.Error -> {}
+                            is Resource.Error -> {
+                                FullScreenError(
+                                    message = stringResource(R.string.error_loading_media),
+                                    onRetry = { viewModel.retry() },
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .statusBarsPadding()
+                                        .padding(top = 120.dp, bottom = 40.dp)
+                                )
+                            }
                         }
                     }
 

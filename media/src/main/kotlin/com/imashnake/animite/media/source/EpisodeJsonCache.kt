@@ -48,7 +48,7 @@ object SourceJsonParser {
 }
 
 object EpisodeJsonCache {
-    private const val CACHE_DIR_NAME = "episodes_json_cache_v3"
+    private const val CACHE_DIR_NAME = "episodes_json_cache_v4"
     private const val CACHE_EXPIRATION_MS = 6 * 60 * 60 * 1000L // 6 hours
 
     fun getCachedEpisodes(context: Context, titles: List<String>): CachedAnimeEpisodes? {
@@ -64,7 +64,8 @@ object EpisodeJsonCache {
                     val content = file.readText()
                     val cached = SourceJsonParser.json.decodeFromString<CachedAnimeEpisodes>(content)
                     if (cached.episodes.isNotEmpty()) {
-                        return cached
+                        val sanitized = sanitizeEpisodes(cached.episodes)
+                        return cached.copy(episodes = sanitized)
                     }
                 } catch (_: Exception) {}
             }
@@ -84,20 +85,50 @@ object EpisodeJsonCache {
             val cacheDir = File(context.cacheDir, CACHE_DIR_NAME)
             if (!cacheDir.exists()) cacheDir.mkdirs()
 
+            val sanitized = sanitizeEpisodes(episodes)
             val key = generateKey(title)
             val file = File(cacheDir, "$key.json")
             val cached = CachedAnimeEpisodes(
                 animeTitle = title,
                 providerId = providerId,
                 matchedUrl = matchedUrl,
-                episodes = episodes,
+                episodes = sanitized,
             )
             file.writeText(SourceJsonParser.json.encodeToString(cached))
         } catch (_: Exception) {}
     }
 
+    private fun sanitizeEpisodes(list: List<AnimeEpisode>): List<AnimeEpisode> {
+        return list.groupBy { it.number }.map { (_, items) ->
+            if (items.size == 1) items.first()
+            else {
+                val combinedSources = items.flatMap { it.sources }.distinctBy { it.episodeUrl }
+                val bestThumb = items.mapNotNull { it.thumbnail }
+                    .firstOrNull { it.isNotBlank() && !it.contains("default") && !it.contains("banner") }
+                    ?: items.firstNotNullOfOrNull { it.thumbnail }
+                val bestTitle = items.mapNotNull { it.title }.maxByOrNull { it.length } ?: items.first().title
+                items.first().copy(sources = combinedSources, thumbnail = bestThumb, title = bestTitle)
+            }
+        }.sortedBy { it.number }
+    }
+
     fun isCacheExpired(cached: CachedAnimeEpisodes): Boolean {
         return (System.currentTimeMillis() - cached.timestampMs) > CACHE_EXPIRATION_MS
+    }
+
+    fun clearAnimeCache(context: Context, titles: List<String>) {
+        try {
+            val cacheDir = File(context.cacheDir, CACHE_DIR_NAME)
+            if (!cacheDir.exists()) return
+            for (title in titles) {
+                if (title.isBlank()) continue
+                val key = generateKey(title)
+                val file = File(cacheDir, "$key.json")
+                if (file.exists()) {
+                    file.delete()
+                }
+            }
+        } catch (_: Exception) {}
     }
 
     private fun generateKey(title: String): String {
@@ -108,6 +139,9 @@ object EpisodeJsonCache {
 object EpisodeSessionRepository {
     private var activeEpisodesList: List<AnimeEpisode> = emptyList()
     private var activeServersList: List<AnimeStreamServer> = emptyList()
+    private var activePlaybackResult: AggregatedPlaybackResult? = null
+    private var activeInitialUrl: String = ""
+    private var activeInitialQuality: String = ""
 
     fun setActiveEpisodes(episodes: List<AnimeEpisode>) {
         activeEpisodesList = episodes
@@ -120,4 +154,22 @@ object EpisodeSessionRepository {
     }
 
     fun getActiveServers(): List<AnimeStreamServer> = activeServersList
+
+    fun setActivePlaybackResult(result: AggregatedPlaybackResult?) {
+        activePlaybackResult = result
+    }
+
+    fun getActivePlaybackResult(): AggregatedPlaybackResult? = activePlaybackResult
+
+    fun setActiveInitialUrl(url: String) {
+        activeInitialUrl = url
+    }
+
+    fun getActiveInitialUrl(): String = activeInitialUrl
+
+    fun setActiveInitialQuality(quality: String) {
+        activeInitialQuality = quality
+    }
+
+    fun getActiveInitialQuality(): String = activeInitialQuality
 }

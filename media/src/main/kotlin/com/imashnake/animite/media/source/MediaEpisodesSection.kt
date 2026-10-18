@@ -45,6 +45,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -82,6 +83,41 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.CompareArrows
+import androidx.compose.material.icons.rounded.FilterList
+import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.HourglassEmpty
+import androidx.compose.material.icons.rounded.Language
+import androidx.compose.material.icons.rounded.Movie
+import androidx.compose.material.icons.rounded.Star
+import androidx.compose.material.icons.rounded.VideoLibrary
+import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material3.TextButton
+import com.imashnake.animite.media.source.classification.EpisodeClassificationRepository
+
+enum class EpisodeFilterCategory(val labelRes: Int) {
+    ALL(R.string.filter_all),
+    CANON(R.string.filter_canon),
+    FILLER(R.string.filter_filler),
+    MIXED(R.string.filter_mixed),
+    SPECIALS(R.string.filter_specials),
+    MOVIES(R.string.filter_movies),
+    RECAPS(R.string.filter_recaps);
+
+    fun matches(type: EpisodeType): Boolean {
+        return when (this) {
+            ALL -> true
+            CANON -> type.isCanon
+            FILLER -> type == EpisodeType.FILLER
+            MIXED -> type == EpisodeType.MIXED
+            SPECIALS -> type == EpisodeType.SPECIAL || type == EpisodeType.OVA || type == EpisodeType.ONA
+            MOVIES -> type == EpisodeType.MOVIE
+            RECAPS -> type == EpisodeType.RECAP
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -108,9 +144,11 @@ fun MediaEpisodesSection(
     var showServerDialog by remember { mutableStateOf(false) }
     var resolveErrorMessage by remember { mutableStateOf<String?>(null) }
     var currentResolveJob by remember { mutableStateOf<Job?>(null) }
+    var showDiagnosticDialog by remember { mutableStateOf(false) }
 
     // Range pagination & search states
     var selectedRangeIndex by remember { mutableIntStateOf(0) }
+    var selectedFilter by remember { mutableStateOf(EpisodeFilterCategory.ALL) }
     var isDescendingOrder by remember { mutableStateOf(false) }
     var isSearchExpanded by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -173,18 +211,61 @@ fun MediaEpisodesSection(
         }
     }
 
-    // Sort episodes according to order preference
-    val sortedEpisodes = remember(episodes, isDescendingOrder) {
-        if (isDescendingOrder) {
-            episodes.sortedByDescending { it.number }
+    // Current source episodes: classify, sanitize, and deduplicate by (episodeType, number)
+    val currentSourceEpisodes = remember(episodes, titles) {
+        val classifiedList = episodes.map { ep ->
+            if (ep.episodeType == EpisodeType.REGULAR || ep.episodeType == EpisodeType.UNCLASSIFIED) {
+                val detected = EpisodeClassificationRepository.classify(titles, ep.number, ep.title, ep.url)
+                ep.copy(episodeType = detected)
+            } else {
+                ep
+            }
+        }
+
+        classifiedList.groupBy { Pair(it.episodeType, it.number) }.map { (_, list) ->
+            if (list.size == 1) list.first()
+            else {
+                val allSources = list.flatMap { it.sources }.distinctBy { it.episodeUrl }
+                val bestThumb = list.mapNotNull { it.thumbnail }
+                    .firstOrNull { it.isNotBlank() && !it.contains("default") && !it.contains("banner") }
+                    ?: list.firstNotNullOfOrNull { it.thumbnail }
+                val bestTitle = list.mapNotNull { it.title }.maxByOrNull { it.length } ?: list.first().title
+                list.first().copy(sources = allSources, thumbnail = bestThumb, title = bestTitle)
+            }
+        }.sortedWith(
+            compareBy<AnimeEpisode> {
+                when (it.episodeType) {
+                    EpisodeType.CANON, EpisodeType.REGULAR, EpisodeType.FILLER, EpisodeType.MIXED, EpisodeType.UNCLASSIFIED -> 0
+                    EpisodeType.RECAP -> 1
+                    EpisodeType.SPECIAL -> 2
+                    EpisodeType.OVA, EpisodeType.ONA -> 3
+                    EpisodeType.MOVIE -> 4
+                }
+            }.thenBy { it.number }
+        )
+    }
+
+    // Filter by selected category (Default: ALL)
+    val filteredByCategoryEpisodes = remember(currentSourceEpisodes, selectedFilter) {
+        if (selectedFilter == EpisodeFilterCategory.ALL) {
+            currentSourceEpisodes
         } else {
-            episodes.sortedBy { it.number }
+            currentSourceEpisodes.filter { selectedFilter.matches(it.episodeType) }
+        }
+    }
+
+    // Sort episodes according to order preference
+    val sortedEpisodes = remember(filteredByCategoryEpisodes, isDescendingOrder) {
+        if (isDescendingOrder) {
+            filteredByCategoryEpisodes.sortedByDescending { it.number }
+        } else {
+            filteredByCategoryEpisodes.sortedBy { it.number }
         }
     }
 
     // Chunk size for ranges: 100 episodes per range (or 50 if <= 100)
-    val chunkSize = remember(episodes.size) {
-        if (episodes.size > 100) 100 else 50
+    val chunkSize = remember(sortedEpisodes.size) {
+        if (sortedEpisodes.size > 100) 100 else 50
     }
 
     val episodeRanges = remember(sortedEpisodes, chunkSize) {
@@ -304,6 +385,59 @@ fun MediaEpisodesSection(
                             modifier = Modifier.size(20.dp),
                         )
                     }
+
+                    // Source Refresh Button
+                    IconButton(
+                        onClick = {
+                            coroutineScope.launch {
+                                isLoadingEpisodes = true
+                                searchError = null
+                                withContext(Dispatchers.IO) {
+                                    EpisodeJsonCache.clearAnimeCache(context, titles)
+                                    try {
+                                        val aggResult = EpisodeSourcesManager.findBestAggregatedEpisodes(titles)
+                                        if (aggResult != null) {
+                                            matchedAnime = aggResult.matchedAnime
+                                            episodes = aggResult.episodes
+                                            activeProvider = aggResult.provider
+                                            EpisodeJsonCache.saveEpisodes(
+                                                context = context,
+                                                title = aggResult.matchedAnime.title,
+                                                providerId = aggResult.provider.id,
+                                                matchedUrl = aggResult.matchedAnime.url,
+                                                episodes = aggResult.episodes,
+                                            )
+                                        }
+                                    } catch (e: Exception) {
+                                        searchError = e.localizedMessage
+                                    } finally {
+                                        isLoadingEpisodes = false
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Refresh,
+                            contentDescription = "تحديث المصادر",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
+
+                    // Diagnostic Summary Button
+                    IconButton(
+                        onClick = { showDiagnosticDialog = true },
+                        modifier = Modifier.size(36.dp),
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.Info,
+                            contentDescription = "تشخيص المصادر",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp),
+                        )
+                    }
                 }
             }
         }
@@ -361,6 +495,46 @@ fun MediaEpisodesSection(
                     .fillMaxWidth()
                     .padding(bottom = 4.dp),
             )
+        }
+
+        // Category Filter Chips (الكل، الأساسي، الفلر، المختلط، الخاص، الأفلام، الملخصات)
+        if (episodes.isNotEmpty() && searchQuery.isBlank()) {
+            LazyRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+                contentPadding = PaddingValues(horizontal = 2.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                items(EpisodeFilterCategory.entries) { category ->
+                    val isSelected = category == selectedFilter
+                    val chipBg by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                        label = "catChipBg",
+                    )
+                    val chipTextColor by animateColorAsState(
+                        targetValue = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        label = "catChipTextColor",
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(chipBg)
+                            .clickable {
+                                selectedFilter = category
+                                selectedRangeIndex = 0
+                            }
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            text = stringResource(category.labelRes),
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = chipTextColor,
+                        )
+                    }
+                }
+            }
         }
 
         // Range Selector Tabs (When episodes > chunkSize)
@@ -466,7 +640,7 @@ fun MediaEpisodesSection(
                                     currentResolveJob = coroutineScope.launch {
                                         try {
                                             val resolved = withContext(Dispatchers.IO) {
-                                                EpisodeSourcesManager.resolveStreamServersWithFallback(
+                                                EpisodeSourcesManager.resolveAllEpisodeQualities(
                                                     episode = ep,
                                                     preferredProviderId = activeProvider?.id,
                                                 )
@@ -474,31 +648,25 @@ fun MediaEpisodesSection(
 
                                             if (!isActive) return@launch
 
-                                            if (resolved.success && resolved.servers.isNotEmpty()) {
-                                                val sList = resolved.servers
+                                            if (resolved.success && resolved.allDirectServers.isNotEmpty()) {
+                                                val sList = resolved.allDirectServers
                                                 servers = sList
-
-                                                val directStreams = sList.filter {
-                                                    it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
-                                                }.distinctBy { it.quality }
-
-                                                val chosenStream = directStreams.firstOrNull { it.quality.contains("1080", true) }
-                                                    ?: directStreams.firstOrNull { it.quality.contains("720", true) }
-                                                    ?: directStreams.firstOrNull { it.quality.contains("HD", true) }
-                                                    ?: directStreams.firstOrNull()
-                                                    ?: sList.first()
+                                                val chosenStream = resolved.bestStream ?: sList.first()
 
                                                 EpisodeSessionRepository.setActiveEpisodes(episodes)
                                                 EpisodeSessionRepository.setActiveServers(sList)
+                                                EpisodeSessionRepository.setActivePlaybackResult(resolved)
+                                                EpisodeSessionRepository.setActiveInitialUrl(chosenStream.url)
+                                                EpisodeSessionRepository.setActiveInitialQuality(chosenStream.quality)
                                                 onNavigateToPlayer(
                                                     VideoPlayerRoute(
                                                         animeTitle = matchedAnime?.title ?: titles.firstOrNull() ?: "",
                                                         episodeNumber = epNumStr,
                                                         initialQuality = chosenStream.quality,
-                                                        initialUrl = chosenStream.url,
-                                                        serversJson = SourceJsonParser.encodeServers(sList),
-                                                        episodesJson = SourceJsonParser.encodeEpisodes(episodes),
-                                                        providerId = resolved.winningProviderId.ifEmpty { activeProvider?.id ?: "anime4up" },
+                                                        initialUrl = "",
+                                                        serversJson = "[]",
+                                                        episodesJson = "[]",
+                                                        providerId = resolved.participatingProviders.firstOrNull() ?: activeProvider?.id ?: "anime4up",
                                                     )
                                                 )
                                             } else {
@@ -542,7 +710,7 @@ fun MediaEpisodesSection(
                                     )
                             )
 
-                            // Episode Number Badge (صورة الحلقة ورقمها فقط)
+                            // Episode Number Badge
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.BottomStart)
@@ -564,6 +732,71 @@ fun MediaEpisodesSection(
                                     color = MaterialTheme.colorScheme.onSurface,
                                     fontSize = 12.sp,
                                 )
+                            }
+
+                            // Episode Classification Badge (Non-color only: Icon + Text)
+                            val badgeData: Triple<String, androidx.compose.ui.graphics.vector.ImageVector, Color>? = when (ep.episodeType) {
+                                EpisodeType.FILLER -> Triple(stringResource(R.string.badge_filler), Icons.Rounded.HourglassEmpty, Color(0xFFF59E0B))
+                                EpisodeType.MIXED -> Triple(stringResource(R.string.badge_mixed), Icons.Rounded.CompareArrows, Color(0xFF14B8A6))
+                                EpisodeType.SPECIAL -> Triple(stringResource(R.string.badge_special), Icons.Rounded.Star, Color(0xFFA855F7))
+                                EpisodeType.OVA -> Triple(stringResource(R.string.badge_ova), Icons.Rounded.VideoLibrary, Color(0xFF8B5CF6))
+                                EpisodeType.ONA -> Triple(stringResource(R.string.badge_ona), Icons.Rounded.Language, Color(0xFF6366F1))
+                                EpisodeType.MOVIE -> Triple(stringResource(R.string.badge_movie), Icons.Rounded.Movie, Color(0xFFEF4444))
+                                EpisodeType.RECAP -> Triple(stringResource(R.string.badge_recap), Icons.Rounded.History, Color(0xFF3B82F6))
+                                EpisodeType.CANON -> Triple(stringResource(R.string.badge_canon), Icons.Rounded.CheckCircle, Color(0xFF10B981))
+                                EpisodeType.UNCLASSIFIED, EpisodeType.REGULAR -> null
+                            }
+
+                            if (badgeData != null) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopStart)
+                                        .padding(6.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(badgeData.third.copy(alpha = 0.90f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(3.dp),
+                                    ) {
+                                        Icon(
+                                            imageVector = badgeData.second,
+                                            contentDescription = null,
+                                            tint = Color.White,
+                                            modifier = Modifier.size(11.dp),
+                                        )
+                                        Text(
+                                            text = badgeData.first,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.White,
+                                            fontSize = 10.sp,
+                                        )
+                                    }
+                                }
+                            }
+
+                            // Episode Availability Badge
+                            if (ep.availabilityState == EpisodeAvailabilityState.UNAVAILABLE) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .padding(6.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(Color(0xFFDC2626).copy(alpha = 0.90f))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                                    contentAlignment = Alignment.Center,
+                                ) {
+                                    Text(
+                                        text = "غير متوفر",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color.White,
+                                        fontSize = 9.sp,
+                                    )
+                                }
                             }
 
                             // Play Indicator icon
@@ -682,7 +915,7 @@ fun MediaEpisodesSection(
                                 currentResolveJob = coroutineScope.launch {
                                     try {
                                         val resolved = withContext(Dispatchers.IO) {
-                                            EpisodeSourcesManager.resolveStreamServersWithFallback(
+                                            EpisodeSourcesManager.resolveAllEpisodeQualities(
                                                 episode = failedEp,
                                                 preferredProviderId = activeProvider?.id,
                                             )
@@ -690,29 +923,24 @@ fun MediaEpisodesSection(
 
                                         if (!isActive) return@launch
 
-                                        if (resolved.success && resolved.servers.isNotEmpty()) {
-                                            val sList = resolved.servers
-                                            val directStreams = sList.filter {
-                                                it.isDirectVideo && it.linkType == StreamLinkType.DIRECT_VIDEO
-                                            }.distinctBy { it.quality }
-
-                                            val chosenStream = directStreams.firstOrNull { it.quality.contains("1080", true) }
-                                                ?: directStreams.firstOrNull { it.quality.contains("720", true) }
-                                                ?: directStreams.firstOrNull { it.quality.contains("HD", true) }
-                                                ?: directStreams.firstOrNull()
-                                                ?: sList.first()
+                                        if (resolved.success && resolved.allDirectServers.isNotEmpty()) {
+                                            val sList = resolved.allDirectServers
+                                            val chosenStream = resolved.bestStream ?: sList.first()
 
                                             EpisodeSessionRepository.setActiveEpisodes(episodes)
                                             EpisodeSessionRepository.setActiveServers(sList)
+                                            EpisodeSessionRepository.setActivePlaybackResult(resolved)
+                                            EpisodeSessionRepository.setActiveInitialUrl(chosenStream.url)
+                                            EpisodeSessionRepository.setActiveInitialQuality(chosenStream.quality)
                                             onNavigateToPlayer(
                                                 VideoPlayerRoute(
                                                     animeTitle = matchedAnime?.title ?: titles.firstOrNull() ?: "",
                                                     episodeNumber = epNumStr,
                                                     initialQuality = chosenStream.quality,
-                                                    initialUrl = chosenStream.url,
-                                                    serversJson = SourceJsonParser.encodeServers(sList),
-                                                    episodesJson = SourceJsonParser.encodeEpisodes(episodes),
-                                                    providerId = resolved.winningProviderId.ifEmpty { activeProvider?.id ?: "anime4up" },
+                                                    initialUrl = "",
+                                                    serversJson = "[]",
+                                                    episodesJson = "[]",
+                                                    providerId = resolved.participatingProviders.firstOrNull() ?: activeProvider?.id ?: "anime4up",
                                                 )
                                             )
                                         } else {
@@ -745,5 +973,129 @@ fun MediaEpisodesSection(
                 }
             }
         }
+
+        // Diagnostic Summary Dialog
+        if (showDiagnosticDialog) {
+            val summary = remember(titles, episodes) {
+                titles.firstNotNullOfOrNull { SmartStreamDiagnostics.getAnimeSummary(it) }
+                    ?: matchedAnime?.title?.let { SmartStreamDiagnostics.getAnimeSummary(it) }
+                    ?: AnimeDiagnosticSummary(
+                        animeTitle = matchedAnime?.title ?: titles.firstOrNull() ?: "",
+                        episodesDiscoveredPerProvider = mapOf(activeProvider?.id.orEmpty() to episodes.size),
+                        unifiedEpisodeCount = episodes.size,
+                        duplicateEpisodesRemoved = 0,
+                        episodesWithoutPlayableCandidates = episodes.count { it.availabilityState == EpisodeAvailabilityState.UNAVAILABLE },
+                        validatedStreamCount = 0,
+                        failedProviders = emptyMap(),
+                        lastSuccessfulCheck = System.currentTimeMillis(),
+                        isFromCache = false,
+                        cacheStatus = "مباشر (Live)",
+                    )
+            }
+
+            Dialog(onDismissRequest = { showDiagnosticDialog = false }) {
+                Surface(
+                    shape = RoundedCornerShape(20.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 6.dp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                ) {
+                    Column(
+                        modifier = Modifier.padding(20.dp),
+                        verticalArrangement = Arrangement.spacedBy(14.dp),
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp),
+                            )
+                            Text(
+                                text = "تشخيص مصادر الأنمي",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                            )
+                        }
+
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            DiagnosticRow(label = "عدد الحلقات الموحد:", value = "${summary.unifiedEpisodeCount} حلقة")
+                            DiagnosticRow(label = "الحلقات المكررة المحذوفة:", value = "${summary.duplicateEpisodesRemoved}")
+                            DiagnosticRow(label = "حلقات بدون مشغل متاح:", value = "${summary.episodesWithoutPlayableCandidates}")
+                            DiagnosticRow(label = "حالة الذاكرة المؤقتة:", value = summary.cacheStatus)
+
+                            if (summary.episodesDiscoveredPerProvider.isNotEmpty()) {
+                                Text(
+                                    text = "الحلقات المكتشفة لكل مصدر:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                                summary.episodesDiscoveredPerProvider.forEach { (provId, count) ->
+                                    DiagnosticRow(
+                                        label = "• ${EpisodeSourcesManager.getProviderDisplayName(provId)}:",
+                                        value = "$count حلقة"
+                                    )
+                                }
+                            }
+
+                            if (summary.failedProviders.isNotEmpty()) {
+                                Text(
+                                    text = "المصادر المتعثرة:",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.padding(top = 4.dp),
+                                )
+                                summary.failedProviders.forEach { (provId, reason) ->
+                                    Text(
+                                        text = "• ${EpisodeSourcesManager.getProviderDisplayName(provId)}: $reason",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
+                        }
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End,
+                        ) {
+                            TextButton(onClick = { showDiagnosticDialog = false }) {
+                                Text("إغلاق")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun DiagnosticRow(label: String, value: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
     }
 }
