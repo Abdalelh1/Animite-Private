@@ -57,15 +57,20 @@ val cairoFontFamily = FontFamily(
 
 const val BASELINE_SHIFT = 0.2f
 
-fun createAnimiteTypography(fontFamily: FontFamily) = Typography(
+fun createAnimiteTypography(
+    fontFamily: FontFamily,
+    baselineShift: Float = BASELINE_SHIFT,
+    isArabic: Boolean = false,
+) = Typography(
     // - [AnimeScreen, MangaScreen]: Media list headings.
     // - [MediaPage]: Media section headings.
     titleMedium = TextStyle(
         fontFamily = fontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 15.sp,
-        letterSpacing = 0.2.sp,
-        baselineShift = BaselineShift(BASELINE_SHIFT)
+        letterSpacing = if (isArabic) 0.sp else 0.2.sp,
+        lineHeight = if (isArabic) 22.sp else 20.sp,
+        baselineShift = BaselineShift(baselineShift)
     ),
     // - [AnimeScreen, MangaScreen]: Media list item labels.
     // - [MediaPage]: Character names.
@@ -73,16 +78,17 @@ fun createAnimiteTypography(fontFamily: FontFamily) = Typography(
         fontSize = 12.sp,
         fontFamily = fontFamily,
         fontWeight = FontWeight.SemiBold,
-        lineHeight = 18.sp,
-        baselineShift = BaselineShift(BASELINE_SHIFT)
+        lineHeight = if (isArabic) 20.sp else 18.sp,
+        baselineShift = BaselineShift(baselineShift)
     ),
     // - [MediaPage]: Media title.
     titleLarge = TextStyle(
         fontFamily = fontFamily,
         fontWeight = FontWeight.Bold,
         fontSize = 16.sp,
-        letterSpacing = 0.2.sp,
-        baselineShift = BaselineShift(BASELINE_SHIFT)
+        letterSpacing = if (isArabic) 0.sp else 0.2.sp,
+        lineHeight = if (isArabic) 24.sp else 22.sp,
+        baselineShift = BaselineShift(baselineShift)
     ),
     // - [MediaPage]: Media description.
     // - [SearchItem]: Search list item titles.
@@ -92,8 +98,8 @@ fun createAnimiteTypography(fontFamily: FontFamily) = Typography(
         fontSize = 14.sp,
         fontFamily = fontFamily,
         fontWeight = FontWeight.Medium,
-        lineHeight = 22.sp,
-        baselineShift = BaselineShift(BASELINE_SHIFT)
+        lineHeight = if (isArabic) 24.sp else 22.sp,
+        baselineShift = BaselineShift(baselineShift)
     ),
     // - [MediaPage]: Stat label.
     // - [SearchItem]: Search list item season and year.
@@ -101,16 +107,18 @@ fun createAnimiteTypography(fontFamily: FontFamily) = Typography(
         fontSize = 12.sp,
         fontFamily = fontFamily,
         fontWeight = FontWeight.Medium,
-        baselineShift = BaselineShift(BASELINE_SHIFT)
+        lineHeight = if (isArabic) 18.sp else 16.sp,
+        baselineShift = BaselineShift(baselineShift)
     ),
     // - [MediaPage]: Stat score.
     displaySmall = TextStyle(
         fontSize = 24.sp,
         fontFamily = fontFamily,
         fontWeight = FontWeight.Bold,
-        baselineShift = BaselineShift(BASELINE_SHIFT)
+        lineHeight = if (isArabic) 32.sp else 28.sp,
+        baselineShift = BaselineShift(baselineShift)
     ),
 )
 
-val AnimiteTypography = createAnimiteTypography(manropeFontFamily)
-val CairoTypography = createAnimiteTypography(cairoFontFamily)
+val AnimiteTypography = createAnimiteTypography(manropeFontFamily, BASELINE_SHIFT, isArabic = false)
+val CairoTypography = createAnimiteTypography(cairoFontFamily, 0.0f, isArabic = true)
