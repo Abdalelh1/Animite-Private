@@ -230,6 +230,7 @@ fun MediaPage(
         val mediaId = (media as? Resource.Success)?.data?.id ?: id
         mutableStateOf(LocalLibraryManager.isInLibrary(context, mediaId))
     }
+    var showLibraryEditSheet by remember { mutableStateOf(false) }
 
     val deviceScreenCornerRadiusDp = with(LocalDensity.current) {
         deviceScreenCornerRadius.toDp()
@@ -307,15 +308,29 @@ fun MediaPage(
                                                     isAnime = true,
                                                     isInLibrary = isInLibrary,
                                                     onToggleLibrary = {
-                                                        val added = LocalLibraryManager.toggleLibrary(context, media.id)
-                                                        isInLibrary = added
-                                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                        Toast.makeText(
-                                                            context,
-                                                            if (added) context.getString(R.string.added_to_library)
-                                                            else context.getString(R.string.removed_from_library),
-                                                            Toast.LENGTH_SHORT
-                                                        ).show()
+                                                        if (isInLibrary) {
+                                                            showLibraryEditSheet = true
+                                                        } else {
+                                                            val added = LocalLibraryManager.toggleLibrary(
+                                                                context = context,
+                                                                animeId = media.id,
+                                                                title = media.title.orEmpty(),
+                                                                coverImage = media.coverImage,
+                                                                bannerImage = media.bannerImage,
+                                                                totalEpisodes = media.episodes,
+                                                            )
+                                                            isInLibrary = added
+                                                            haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                            Toast.makeText(
+                                                                context,
+                                                                if (added) context.getString(R.string.added_to_library)
+                                                                else context.getString(R.string.removed_from_library),
+                                                                Toast.LENGTH_SHORT
+                                                            ).show()
+                                                            if (added) {
+                                                                showLibraryEditSheet = true
+                                                            }
+                                                        }
                                                     },
                                                     onWatchClick = {
                                                         val otherTitlesJson = try {
@@ -630,6 +645,21 @@ fun MediaPage(
                         tint = if (isSystemInDarkTheme()) Color.White else Color.Black
                     )
                 }
+            }
+
+            if (showLibraryEditSheet) {
+                val currentMedia = (media as? Resource.Success)?.data
+                LibraryEntryEditSheet(
+                    animeId = currentMedia?.id ?: id,
+                    animeTitle = currentMedia?.title.orEmpty(),
+                    coverImage = currentMedia?.coverImage,
+                    bannerImage = currentMedia?.bannerImage,
+                    totalEpisodes = currentMedia?.episodes,
+                    onDismissRequest = { showLibraryEditSheet = false },
+                    onEntryChanged = {
+                        isInLibrary = LocalLibraryManager.isInLibrary(context, currentMedia?.id ?: id)
+                    }
+                )
             }
 
             if (showDetailsSheet) {

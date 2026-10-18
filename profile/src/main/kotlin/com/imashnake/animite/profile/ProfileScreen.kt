@@ -35,8 +35,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ExitToApp
+import androidx.compose.material.icons.filled.BookmarkBorder
 import androidx.compose.material.icons.rounded.MoreVert
 import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.imashnake.animite.profile.dev.ANILIST_AUTH_URL
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -117,7 +124,7 @@ import me.saket.cascade.rememberCascadeState
 import org.intellij.markdown.flavours.gfm.GFMFlavourDescriptor
 import com.imashnake.animite.navigation.R as navigationR
 
-private const val DROP_DOWN_ITEMS_COUNT = 1
+private const val DROP_DOWN_ITEMS_COUNT = 2
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Suppress("LongMethod")
@@ -153,6 +160,22 @@ fun ProfileScreen(
     val viewer by viewModel.viewer.collectAsState()
     val viewerAnimeLists by viewModel.viewerAnimeLists.collectAsState()
     val viewerMangaLists by viewModel.viewerMangaLists.collectAsState()
+    val localEntries by viewModel.localLibraryEntries.collectAsState(initial = emptyList())
+    var showLocalLibraryInLoggedIn by remember { mutableStateOf(false) }
+    val uriHandler = LocalUriHandler.current
+    val lifecycleOwner = LocalLifecycleOwner.current
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.loadLocalLibrary()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
 
     val data = listOf(viewer, viewerAnimeLists, viewerMangaLists)
 
@@ -172,7 +195,7 @@ fun ProfileScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         when {
-            isLoggedIn -> when {
+            isLoggedIn && !showLocalLibraryInLoggedIn -> when {
                 data.all { it is Resource.Success } -> viewer.data?.run {
                     MaterialTheme(
                         colorScheme = if (useProfileColor) {
@@ -233,6 +256,7 @@ fun ProfileScreen(
                                         isBannerExpanded = isBannerExpanded,
                                         onBannerExpanded = { isBannerExpanded = !isBannerExpanded },
                                         onNavigateToSettings = onNavigateToSettings,
+                                        onToggleLocalLibrary = { showLocalLibraryInLoggedIn = true },
                                         logOut = { isLogOutDialogShown = true },
                                         expanded = isDropdownExpanded,
                                         setExpanded = { isDropdownExpanded = it },
@@ -331,14 +355,24 @@ fun ProfileScreen(
             }
 
             else -> {
-                SettingsIcon(
+                LocalLibraryView(
+                    entries = localEntries,
+                    onNavigateToMediaItem = onNavigateToMediaItem,
                     onNavigateToSettings = onNavigateToSettings,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(LocalPaddings.current.large)
-                        .padding(allPaddingValues.copy(bottom = 0.dp)),
+                    onQuickIncrementEpisode = { animeId, nextEp ->
+                        viewModel.updateLocalEntryProgress(animeId, nextEp)
+                    },
+                    onConnectAniList = {
+                        if (isLoggedIn) {
+                            showLocalLibraryInLoggedIn = false
+                        } else {
+                            uriHandler.openUri(ANILIST_AUTH_URL)
+                        }
+                    },
+                    isLoggedIn = isLoggedIn,
+                    contentPadding = allPaddingValues,
+                    modifier = Modifier.fillMaxSize()
                 )
-                Login(Modifier.padding(allPaddingValues))
             }
         }
 
@@ -361,6 +395,7 @@ private fun SettingsAndMore(
     isBannerExpanded: Boolean,
     onBannerExpanded: () -> Unit,
     onNavigateToSettings: (SettingsPage) -> Unit,
+    onToggleLocalLibrary: () -> Unit,
     expanded: Boolean,
     setExpanded: (Boolean) -> Unit,
     logOut: () -> Unit,
@@ -415,6 +450,20 @@ private fun SettingsAndMore(
             ) {
                 // TODO: The material3 DropdownMenuItem doesn't respect layout direction padding.
                 //  Figure out why/create an issue. saket-cascade works just fine.
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.my_library)) },
+                    leadingIcon = {
+                        Icon(
+                            imageVector = Icons.Default.BookmarkBorder,
+                            contentDescription = stringResource(R.string.my_library),
+                        )
+                    },
+                    onClick = {
+                        setExpanded(false)
+                        onToggleLocalLibrary()
+                    },
+                    contentPadding = PaddingValues(LocalPaddings.current.medium)
+                )
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.log_out)) },
                     leadingIcon = {

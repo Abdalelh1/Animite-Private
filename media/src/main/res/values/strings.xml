@@ -229,5 +229,18 @@
     <string name="no_intro_set">Not configured</string>
     <string name="error_loading_media">Failed to load anime details</string>
     <string name="check_connection">Please check your network connection and try again</string>
+
+    <!-- Library Status & Quick Edit -->
+    <string name="status_watching">Watching</string>
+    <string name="status_plan_to_watch">Plan to Watch</string>
+    <string name="status_completed">Completed</string>
+    <string name="status_on_hold">On Hold</string>
+    <string name="status_dropped">Dropped</string>
+    <string name="status_favorite">Favorite</string>
+    <string name="edit_library_entry">Edit Library Entry</string>
+    <string name="progress_label">Progress</string>
+    <string name="score_label">Score</string>
+    <string name="remove_from_library_action">Remove from Library</string>
+    <string name="save_action">Save</string>
 </resources>
 

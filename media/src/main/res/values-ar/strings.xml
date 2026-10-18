@@ -230,5 +230,18 @@
     <string name="no_intro_set">غير معينة</string>
     <string name="error_loading_media">تعذر تحميل تفاصيل العمل</string>
     <string name="check_connection">يرجى التحقق من اتصالك بالإنترنت والمحاولة مجدداً</string>
+
+    <!-- حالة المكتبة والتعديل السريع -->
+    <string name="status_watching">يشاهد حالياً</string>
+    <string name="status_plan_to_watch">مخطط للمشاهدة</string>
+    <string name="status_completed">مكتمل</string>
+    <string name="status_on_hold">مؤجل</string>
+    <string name="status_dropped">متروك</string>
+    <string name="status_favorite">المفضلة</string>
+    <string name="edit_library_entry">تعديل قائمة المشاهدة</string>
+    <string name="progress_label">التقدم</string>
+    <string name="score_label">التقييم</string>
+    <string name="remove_from_library_action">حذف من المكتبة</string>
+    <string name="save_action">حفظ</string>
 </resources>
 

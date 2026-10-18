@@ -29,12 +29,18 @@ import kotlinx.coroutines.flow.onStart
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.Json
+import android.content.Context
+import com.imashnake.animite.media.LibraryStatus
+import com.imashnake.animite.media.LocalLibraryEntry
+import com.imashnake.animite.media.LocalLibraryManager
+import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val userRepository: AnilistUserRepository,
     private val preferencesRepository: PreferencesRepository,
     savedStateHandle: SavedStateHandle
@@ -203,7 +209,34 @@ class ProfileViewModel @Inject constructor(
         preferencesRepository.setViewerAvatar(avatarUrl)
     }
 
+    val localLibraryEntries = LocalLibraryManager.entriesFlow
+
+    fun loadLocalLibrary() {
+        LocalLibraryManager.getEntries(context)
+    }
+
+    fun updateLocalEntryStatus(animeId: Int, status: LibraryStatus) {
+        LocalLibraryManager.updateStatus(context, animeId, status)
+    }
+
+    fun updateLocalEntryProgress(animeId: Int, episode: Int) {
+        LocalLibraryManager.updateProgress(context, animeId, episode)
+    }
+
+    fun updateLocalEntryScore(animeId: Int, score: Float?) {
+        LocalLibraryManager.updateScore(context, animeId, score)
+    }
+
+    fun toggleLocalFavorite(animeId: Int) {
+        LocalLibraryManager.toggleFavorite(context, animeId)
+    }
+
+    fun removeLocalEntry(animeId: Int) {
+        LocalLibraryManager.removeEntry(context, animeId)
+    }
+
     init {
+        LocalLibraryManager.getEntries(context)
         if (navArgs.accessToken != null) {
             viewModelScope.launch(Dispatchers.IO) {
                 preferencesRepository.setAccessToken(navArgs.accessToken)

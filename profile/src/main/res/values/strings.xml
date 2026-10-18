@@ -63,4 +63,27 @@
     <string name="log_in">Log in</string>
     <string name="anilist_icon">AniList icon</string>
     <string name="avatar">Avatar</string>
+
+    <!-- Local Library -->
+    <string name="my_library">My Library</string>
+    <string name="tab_all">All</string>
+    <string name="tab_watching">Watching</string>
+    <string name="tab_completed">Completed</string>
+    <string name="tab_plan_to_watch">Plan to Watch</string>
+    <string name="tab_on_hold">On Hold</string>
+    <string name="tab_dropped">Dropped</string>
+    <string name="tab_favorites">Favorites</string>
+    <string name="search_library_hint">Search in library…</string>
+    <string name="sort_by">Sort by</string>
+    <string name="sort_recently_updated">Recently updated</string>
+    <string name="sort_title">Title</string>
+    <string name="sort_score">Score</string>
+    <string name="sort_progress">Progress</string>
+    <string name="empty_library_message">No anime found in this section</string>
+    <string name="empty_library_suggestion">Add anime to your library from the details screen to track your progress</string>
+    <string name="connect_anilist">Connect AniList</string>
+    <string name="guest_user">Local Profile</string>
+    <string name="guest_subtitle">Offline library and personalized progress</string>
+    <string name="quick_increment">+1 Ep</string>
+    <string name="view_anilist_profile">Switch to AniList Profile</string>
 </resources>

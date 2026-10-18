@@ -67,4 +67,27 @@
     <string name="log_in">تسجيل الدخول</string>
     <string name="anilist_icon">أيقونة AniList</string>
     <string name="avatar">الصورة الرمزية</string>
+
+    <!-- المكتبة المحلية -->
+    <string name="my_library">مكتبتي</string>
+    <string name="tab_all">الكل</string>
+    <string name="tab_watching">أشاهده حالياً</string>
+    <string name="tab_completed">مكتمل</string>
+    <string name="tab_plan_to_watch">أخطط لمشاهدته</string>
+    <string name="tab_on_hold">مؤجل</string>
+    <string name="tab_dropped">متروك</string>
+    <string name="tab_favorites">المفضلة</string>
+    <string name="search_library_hint">بحث في المكتبة…</string>
+    <string name="sort_by">ترتيب حسب</string>
+    <string name="sort_recently_updated">آخر تحديث</string>
+    <string name="sort_title">العنوان</string>
+    <string name="sort_score">التقييم</string>
+    <string name="sort_progress">التقدم</string>
+    <string name="empty_library_message">لا توجد أعمال في هذا القسم بعد</string>
+    <string name="empty_library_suggestion">أضف أعمالاً إلى مكتبتك من صفحة التفاصيل لمتابعة تقدمك</string>
+    <string name="connect_anilist">ربط حساب AniList</string>
+    <string name="guest_user">الملف الشخصي المحلي</string>
+    <string name="guest_subtitle">مكتبتك ومتابعة تقدم المشاهدة بدون حساب</string>
+    <string name="quick_increment">+1 حلقة</string>
+    <string name="view_anilist_profile">التبديل إلى حساب AniList</string>
 </resources>
