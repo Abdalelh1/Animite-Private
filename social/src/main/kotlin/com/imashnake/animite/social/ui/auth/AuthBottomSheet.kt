@@ -377,18 +377,13 @@ fun AuthBottomSheet(
                     val webClientId = runCatching {
                         val resId = context.resources.getIdentifier("default_web_client_id", "string", context.packageName)
                         if (resId != 0) context.getString(resId) else null
-                    }.getOrNull()
-
-                    if (webClientId.isNullOrBlank()) {
-                        viewModel.setErrorMessage("Google Sign-In is not configured yet in Firebase Console.")
-                    } else {
-                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-                            .requestIdToken(webClientId)
-                            .requestEmail()
-                            .build()
-                        val client = GoogleSignIn.getClient(context, gso)
-                        googleSignInLauncher.launch(client.signInIntent)
-                    }
+                    }.getOrNull() ?: "924518113687-jge5r6p0tm7ln69bi3rtn8ivnrgk6cl0.apps.googleusercontent.com"
+                    val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
+                        .requestIdToken(webClientId)
+                        .requestEmail()
+                        .build()
+                    val client = GoogleSignIn.getClient(context, gso)
+                    googleSignInLauncher.launch(client.signInIntent)
                 },
                 enabled = !isLoading,
                 shape = RoundedCornerShape(12.dp),

@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Animeta</string>
+    <string name="default_web_client_id" translatable="false">924518113687-jge5r6p0tm7ln69bi3rtn8ivnrgk6cl0.apps.googleusercontent.com</string>
 </resources>
