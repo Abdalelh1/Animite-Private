@@ -43,7 +43,7 @@ import androidx.compose.ui.platform.LocalUriHandler
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.imashnake.animite.profile.dev.ANILIST_AUTH_URL
+import com.imashnake.animite.social.ui.auth.AuthBottomSheet
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -181,6 +181,7 @@ fun ProfileScreen(
 
     var isLogOutDialogShown by remember { mutableStateOf(false) }
     var isDropdownExpanded by remember { mutableStateOf(false) }
+    var showAuthBottomSheet by remember { mutableStateOf(false) }
 
     val deviceScreenCornerRadiusDp = with(LocalDensity.current) {
         deviceScreenCornerRadius.toDp()
@@ -366,7 +367,7 @@ fun ProfileScreen(
                         if (isLoggedIn) {
                             showLocalLibraryInLoggedIn = false
                         } else {
-                            uriHandler.openUri(ANILIST_AUTH_URL)
+                            showAuthBottomSheet = true
                         }
                     },
                     isLoggedIn = isLoggedIn,
@@ -387,6 +388,12 @@ fun ProfileScreen(
                     isDropdownExpanded = false
                 },
             )
+
+        if (showAuthBottomSheet) {
+            AuthBottomSheet(
+                onDismissRequest = { showAuthBottomSheet = false }
+            )
+        }
     }
 }
 

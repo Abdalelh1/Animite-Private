@@ -13,6 +13,7 @@ ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 detekt = { id = "io.gitlab.arturbosch.detekt", version.ref = "detekt" }
 apollo-cache = { id = "com.apollographql.cache:normalized-cache-apollo-compiler-plugin", version.ref = "apolloCache" }
 apollo-kotlin = { id = "com.apollographql.apollo", version.ref = "apollo" }
+google-services = { id = "com.google.gms.google-services", version.ref = "googleServices" }
 
 
 [versions]
@@ -114,6 +115,12 @@ reorderable = "3.1.0"
 media3 = "1.9.0"
 jsoup = "1.18.3"
 
+# Google Services & Firebase
+googleServices = "4.4.2"
+firebaseBom = "33.10.0"
+playServicesAuth = "21.3.0"
+cloudinary = "3.1.2"
+
 [libraries]
 
 android-desugaring = { group = "com.android.tools", name = "desugar_jdk_libs", version.ref = "desugaring" }
@@ -179,6 +186,13 @@ reorderable = { module = "sh.calvin.reorderable:reorderable", version.ref = "reo
 mikepenz-composeMarkdown = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-m3-android", version.ref = "composeMarkdown" }
 mikepenz-composeMarkdown-coil = { group = "com.mikepenz", name = "multiplatform-markdown-renderer-coil3", version.ref = "composeMarkdown" }
 
+# Firebase
+firebase-bom = { group = "com.google.firebase", name = "firebase-bom", version.ref = "firebaseBom" }
+firebase-auth = { group = "com.google.firebase", name = "firebase-auth" }
+firebase-firestore = { group = "com.google.firebase", name = "firebase-firestore" }
+firebase-storage = { group = "com.google.firebase", name = "firebase-storage" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
+cloudinary-android = { group = "com.cloudinary", name = "cloudinary-android", version.ref = "cloudinary" }
 
 [bundles]
 

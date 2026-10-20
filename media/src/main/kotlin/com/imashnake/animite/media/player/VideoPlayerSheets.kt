@@ -253,6 +253,9 @@ fun SubtitleSelectionSheet(
     subtitlesEnabled: Boolean,
     onSelectTrack: (MediaTrackUiModel?) -> Unit,
     onDismiss: () -> Unit,
+    externalSubtitleName: String? = null,
+    onImportExternalSubtitle: (() -> Unit)? = null,
+    onRemoveExternalSubtitle: (() -> Unit)? = null,
 ) {
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -304,9 +307,22 @@ fun SubtitleSelectionSheet(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Available Subtitles
+            // Attached External Subtitle (if any)
+            if (!externalSubtitleName.isNullOrEmpty()) {
+                SheetSelectionRow(
+                    title = externalSubtitleName,
+                    badge = "ملف خارجي",
+                    isSelected = true,
+                    onClick = {
+                        onDismiss()
+                    }
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+
+            // Available Embedded Subtitles
             LazyColumn(
-                modifier = Modifier.heightIn(max = 280.dp),
+                modifier = Modifier.heightIn(max = 240.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(subtitleTracks) { track ->
@@ -328,6 +344,34 @@ fun SubtitleSelectionSheet(
                     )
                 }
             }
+
+            // Import External Subtitle Option
+            if (onImportExternalSubtitle != null) {
+                Spacer(modifier = Modifier.height(12.dp))
+                SheetSelectionRow(
+                    title = "+ استيراد ترجمة (.srt, .ass, .ssa)",
+                    badge = "SAF",
+                    isSelected = false,
+                    onClick = {
+                        onDismiss()
+                        onImportExternalSubtitle()
+                    }
+                )
+            }
+
+            if (!externalSubtitleName.isNullOrEmpty() && onRemoveExternalSubtitle != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                SheetSelectionRow(
+                    title = "إزالة الترجمة الخارجية",
+                    badge = null,
+                    isSelected = false,
+                    onClick = {
+                        onRemoveExternalSubtitle()
+                        onDismiss()
+                    }
+                )
+            }
+
             Spacer(modifier = Modifier.height(20.dp))
         }
     }

@@ -127,6 +127,15 @@ class VideoPlayerViewModel @Inject constructor(
     private val _sleepTimerSecondsLeft = MutableStateFlow<Int?>(null)
     val sleepTimerSecondsLeft = _sleepTimerSecondsLeft.asStateFlow()
 
+    private val _attachedExternalSubtitle = MutableStateFlow<String?>(null)
+    val attachedExternalSubtitle = _attachedExternalSubtitle.asStateFlow()
+
+    private val _externalSubtitleLabel = MutableStateFlow<String?>(null)
+    val externalSubtitleLabel = _externalSubtitleLabel.asStateFlow()
+
+    private val _externalSubtitleDelayMs = MutableStateFlow(0L)
+    val externalSubtitleDelayMs = _externalSubtitleDelayMs.asStateFlow()
+
     fun setAutoQualityMode(enabled: Boolean) {
         _isAutoQualityMode.value = enabled
         if (enabled) {
@@ -535,6 +544,26 @@ class VideoPlayerViewModel @Inject constructor(
         if (mimeType != null) {
             mediaItemBuilder.setMimeType(mimeType)
         }
+
+        val attachedSubPath = _attachedExternalSubtitle.value
+        if (attachedSubPath != null) {
+            val subFile = java.io.File(attachedSubPath)
+            if (subFile.exists()) {
+                val subUri = android.net.Uri.fromFile(subFile)
+                val subMime = when {
+                    attachedSubPath.endsWith(".ass", ignoreCase = true) || attachedSubPath.endsWith(".ssa", ignoreCase = true) -> MimeTypes.TEXT_SSA
+                    else -> MimeTypes.APPLICATION_SUBRIP
+                }
+                val subConfig = MediaItem.SubtitleConfiguration.Builder(subUri)
+                    .setMimeType(subMime)
+                    .setLanguage("ar")
+                    .setLabel(_externalSubtitleLabel.value ?: "External Subtitle")
+                    .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
+                    .build()
+                mediaItemBuilder.setSubtitleConfigurations(listOf(subConfig))
+            }
+        }
+
         val mediaItem = mediaItemBuilder.build()
 
         val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
@@ -543,6 +572,41 @@ class VideoPlayerViewModel @Inject constructor(
         player.playWhenReady = playWhenReady
         refreshCacheInfo()
         updateTracksFromPlayer()
+    }
+
+    fun attachExternalSubtitle(
+        filePath: String,
+        label: String = "External Subtitle",
+        language: String = "ar",
+    ) {
+        _attachedExternalSubtitle.value = filePath
+        _externalSubtitleLabel.value = label
+        val player = exoPlayerInstance ?: return
+        val currentUrl = activeServerUrl ?: return
+        val currentPos = player.currentPosition
+        val wasPlaying = player.playWhenReady
+        activeServerUrl = null // Force re-prepare
+        prepareMedia(
+            server = AnimeStreamServer(name = _effectiveQuality.value, url = currentUrl, isDirectVideo = true, quality = _effectiveQuality.value),
+            positionMs = currentPos,
+            playWhenReady = wasPlaying
+        )
+    }
+
+    fun removeExternalSubtitle() {
+        _attachedExternalSubtitle.value = null
+        _externalSubtitleLabel.value = null
+        _externalSubtitleDelayMs.value = 0L
+        val player = exoPlayerInstance ?: return
+        val currentUrl = activeServerUrl ?: return
+        val currentPos = player.currentPosition
+        val wasPlaying = player.playWhenReady
+        activeServerUrl = null // Force re-prepare
+        prepareMedia(
+            server = AnimeStreamServer(name = _effectiveQuality.value, url = currentUrl, isDirectVideo = true, quality = _effectiveQuality.value),
+            positionMs = currentPos,
+            playWhenReady = wasPlaying
+        )
     }
 
     fun setPlaybackSpeed(speed: Float) {

@@ -34,6 +34,11 @@ import com.imashnake.animite.media.LibraryStatus
 import com.imashnake.animite.media.LocalLibraryEntry
 import com.imashnake.animite.media.LocalLibraryManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import com.imashnake.animite.social.data.AuthRepository
+import com.imashnake.animite.social.data.FirestoreSyncRepository
+import com.imashnake.animite.social.model.AnimiteUser
+import com.imashnake.animite.social.model.AuthState
+import com.imashnake.animite.social.model.FirestoreLibraryEntry
 import javax.inject.Inject
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -43,6 +48,8 @@ class ProfileViewModel @Inject constructor(
     @ApplicationContext private val context: Context,
     private val userRepository: AnilistUserRepository,
     private val preferencesRepository: PreferencesRepository,
+    private val authRepository: AuthRepository,
+    private val firestoreSyncRepository: FirestoreSyncRepository,
     savedStateHandle: SavedStateHandle
 ) : ViewModel() {
 
@@ -53,9 +60,16 @@ class ProfileViewModel @Inject constructor(
 
     var useNetwork = false
 
-    val isLoggedIn = preferencesRepository
-        .accessToken
-        .map { !it.isNullOrEmpty() }
+    val authState = authRepository.authState
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AuthState.Loading)
+
+    val isFirebaseLoggedIn = authRepository.authState
+        .map { it is AuthState.Authenticated }
+
+    val currentFirebaseUser = authRepository.authState
+        .map { (it as? AuthState.Authenticated)?.user }
+
+    val isLoggedIn = isFirebaseLoggedIn
 
     val useProfileColor = preferencesRepository.useProfileColor.filterNotNull()
     val profileColor = preferencesRepository.profileColor.filterNotNull()
@@ -197,6 +211,7 @@ class ProfileViewModel @Inject constructor(
     }
 
     fun logOut() = viewModelScope.launch(Dispatchers.IO) {
+        authRepository.signOut()
         with(preferencesRepository) {
             setAccessToken(null)
             setViewerId(null)
@@ -217,22 +232,69 @@ class ProfileViewModel @Inject constructor(
 
     fun updateLocalEntryStatus(animeId: Int, status: LibraryStatus) {
         LocalLibraryManager.updateStatus(context, animeId, status)
+        syncEntryToCloud(animeId)
     }
 
     fun updateLocalEntryProgress(animeId: Int, episode: Int) {
         LocalLibraryManager.updateProgress(context, animeId, episode)
+        syncEntryToCloud(animeId)
     }
 
     fun updateLocalEntryScore(animeId: Int, score: Float?) {
         LocalLibraryManager.updateScore(context, animeId, score)
+        syncEntryToCloud(animeId)
     }
 
     fun toggleLocalFavorite(animeId: Int) {
         LocalLibraryManager.toggleFavorite(context, animeId)
+        syncEntryToCloud(animeId)
     }
 
     fun removeLocalEntry(animeId: Int) {
         LocalLibraryManager.removeEntry(context, animeId)
+        val uid = authRepository.currentUid ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            firestoreSyncRepository.deleteLibraryEntry(uid, animeId)
+        }
+    }
+
+    fun syncLocalLibraryToCloud() {
+        val uid = authRepository.currentUid ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            val localList = LocalLibraryManager.getEntries(context)
+            if (localList.isEmpty()) return@launch
+            val cloudEntries = localList.map { local ->
+                FirestoreLibraryEntry(
+                    animeId = local.animeId,
+                    status = local.status.name,
+                    currentEpisode = local.currentEpisode,
+                    score = local.score,
+                    isFavorite = local.isFavorite,
+                    notes = local.notes,
+                    lastUpdated = local.lastUpdated,
+                )
+            }
+            firestoreSyncRepository.batchSaveLibraryEntries(uid, cloudEntries)
+        }
+    }
+
+    private fun syncEntryToCloud(animeId: Int) {
+        val uid = authRepository.currentUid ?: return
+        val entry = LocalLibraryManager.getEntry(context, animeId) ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            firestoreSyncRepository.saveLibraryEntry(
+                uid = uid,
+                entry = FirestoreLibraryEntry(
+                    animeId = entry.animeId,
+                    status = entry.status.name,
+                    currentEpisode = entry.currentEpisode,
+                    score = entry.score,
+                    isFavorite = entry.isFavorite,
+                    notes = entry.notes,
+                    lastUpdated = entry.lastUpdated,
+                )
+            )
+        }
     }
 
     init {
@@ -240,6 +302,13 @@ class ProfileViewModel @Inject constructor(
         if (navArgs.accessToken != null) {
             viewModelScope.launch(Dispatchers.IO) {
                 preferencesRepository.setAccessToken(navArgs.accessToken)
+            }
+        }
+        viewModelScope.launch(Dispatchers.IO) {
+            authRepository.authState.collect { state ->
+                if (state is AuthState.Authenticated) {
+                    syncLocalLibraryToCloud()
+                }
             }
         }
     }

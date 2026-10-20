@@ -31,6 +31,8 @@ object EpisodeWatchManager {
         isLenient = true
     }
 
+    var onWatchProgressChanged: ((animeId: Int, episodeNumber: Float, progress: Float, lastPosMs: Long, durationMs: Long) -> Unit)? = null
+
     fun getProgress(context: Context, animeId: Int, episodeNumber: Float): Float {
         if (animeId <= 0) return 0f
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -68,6 +70,7 @@ object EpisodeWatchManager {
                 putBoolean(watchedKey(animeId, episodeNumber), true)
             }
         }
+        onWatchProgressChanged?.invoke(animeId, episodeNumber, clamped, 0L, 0L)
     }
 
     fun markWatched(context: Context, animeId: Int, episodeNumber: Float, watched: Boolean) {
@@ -82,6 +85,7 @@ object EpisodeWatchManager {
                 putFloat(progressKey(animeId, episodeNumber), 0f)
             }
         }
+        onWatchProgressChanged?.invoke(animeId, episodeNumber, if (watched) 1f else 0f, 0L, 0L)
     }
 
     fun hasAnyWatchHistory(context: Context, animeId: Int): Boolean {
@@ -247,6 +251,10 @@ object EpisodeWatchManager {
             val str = json.encodeToString(capped)
             prefs.edit().putString(KEY_CONTINUE_WATCHING_JSON, str).apply()
         } catch (_: Exception) {}
+
+        if (effectiveAnimeId > 0) {
+            onWatchProgressChanged?.invoke(effectiveAnimeId, episodeNumber, clamped, lastPositionMs, durationMs)
+        }
     }
 
     fun getContinueWatchingItems(context: Context): List<ContinueWatchingItem> {

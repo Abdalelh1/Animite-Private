@@ -85,9 +85,9 @@
     <string name="sort_progress">التقدم</string>
     <string name="empty_library_message">لا توجد أعمال في هذا القسم بعد</string>
     <string name="empty_library_suggestion">أضف أعمالاً إلى مكتبتك من صفحة التفاصيل لمتابعة تقدمك</string>
-    <string name="connect_anilist">ربط حساب AniList</string>
-    <string name="guest_user">الملف الشخصي المحلي</string>
-    <string name="guest_subtitle">مكتبتك ومتابعة تقدم المشاهدة بدون حساب</string>
+    <string name="connect_anilist">تسجيل الدخول لمزامنة المكتبة</string>
+    <string name="guest_user">المكتبة المحلية</string>
+    <string name="guest_subtitle">مكتبة متزامنة مع السحاب وتقدم المشاهدة</string>
     <string name="quick_increment">+1 حلقة</string>
-    <string name="view_anilist_profile">التبديل إلى حساب AniList</string>
+    <string name="view_anilist_profile">مزامنة السحاب متصلة</string>
 </resources>

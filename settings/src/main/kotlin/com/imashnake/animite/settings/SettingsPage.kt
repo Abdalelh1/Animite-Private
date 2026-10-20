@@ -122,7 +122,7 @@ private const val DISCORD_URL = "https://discord.gg/HEB7duYdqe"
 private const val GITHUB_URL = "https://github.com/imashnake0/Animite/"
 private const val PRIVACY_POLICY = "https://imashnake.imashnake0.deno.net/animite.html"
 private const val SYSTEM_DAY_PART = "SYSTEM"
-private const val APP_NAME = "Amimena"
+private const val APP_NAME = "Animeta"
 private const val BASED_ON_ANIMITE = "Based on Animite"
 
 // TODO: What a hodgepodge, do something.

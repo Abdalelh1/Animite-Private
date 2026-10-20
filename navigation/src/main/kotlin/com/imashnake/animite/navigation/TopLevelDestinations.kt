@@ -33,6 +33,9 @@ data object AnimeRoute
 data object MangaRoute
 
 @Serializable
+data object RawAnimeRoute
+
+@Serializable
 data class VideoPlayerRoute(
     val animeTitle: String,
     val episodeNumber: String,
@@ -41,6 +44,8 @@ data class VideoPlayerRoute(
     val serversJson: String = "[]",
     val episodesJson: String = "[]",
     val providerId: String = "",
+    val isRaw: Boolean = false,
+    val initialSubtitleUri: String? = null,
 )
 
 @Serializable
@@ -56,5 +61,24 @@ data class EpisodesRoute(
     val seasonYear: String? = null,
     val streamingEpisodesJson: String = "{}",
     val nextAiringEpisode: Int? = null,
+)
+
+@Serializable
+data class UserProfileRoute(
+    val userId: String,
+)
+
+@Serializable
+data class ChatRoute(
+    val conversationId: String,
+    val recipientId: String,
+    val recipientName: String,
+    val recipientAvatar: String? = null,
+)
+
+@Serializable
+data class FollowListRoute(
+    val userId: String,
+    val initialTab: Int = 0, // 0 = followers, 1 = following
 )
 

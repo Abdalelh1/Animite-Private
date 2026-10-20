@@ -12,20 +12,20 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import com.imashnake.animite.core.ui.LocalPaddings
 import com.imashnake.animite.profile.R
-import com.imashnake.animite.profile.dev.ANILIST_AUTH_URL
 
 @Composable
-fun Login(modifier: Modifier = Modifier) {
-    val uriHandler = LocalUriHandler.current
+fun Login(
+    onClick: () -> Unit = {},
+    modifier: Modifier = Modifier,
+) {
     OutlinedButton(
-        onClick = { uriHandler.openUri(ANILIST_AUTH_URL) },
+        onClick = onClick,
         colors = ButtonDefaults.buttonColors(
             containerColor = Color(0xFF1E2630),
             contentColor = Color.White
@@ -34,9 +34,9 @@ fun Login(modifier: Modifier = Modifier) {
     ) {
         Row(Modifier.wrapContentWidth()) {
             Icon(
-                imageVector = ImageVector.vectorResource(R.drawable.ic_anilist),
-                contentDescription = stringResource(R.string.anilist_icon),
-                tint = Color.Unspecified,
+                imageVector = Icons.Default.Person,
+                contentDescription = stringResource(R.string.log_in),
+                tint = Color.White,
                 modifier = Modifier.size(24.dp)
             )
             Text(

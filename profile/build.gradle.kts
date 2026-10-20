@@ -40,6 +40,7 @@ dependencies {
     implementation(projects.media)
     implementation(projects.navigation)
     implementation(projects.settings)
+    implementation(projects.social)
 
     // AndroidX
     implementation(libs.androidx.core.ktx)

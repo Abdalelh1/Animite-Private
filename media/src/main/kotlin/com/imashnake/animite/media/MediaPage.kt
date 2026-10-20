@@ -160,6 +160,7 @@ import com.imashnake.animite.navigation.ExploreRoute
 import com.imashnake.animite.navigation.VideoPlayerRoute
 import com.imashnake.animite.media.source.MediaEpisodesSection
 import com.imashnake.animite.navigation.EpisodesRoute
+import com.imashnake.animite.social.ui.comments.CommentsSection
 import com.imashnake.animite.navigation.SharedContentKey
 import com.imashnake.animite.navigation.SharedContentKey.Component.Card
 import com.imashnake.animite.navigation.SharedContentKey.Component.Image
@@ -192,6 +193,7 @@ fun MediaPage(
     onNavigateToExplore: (ExploreRoute) -> Unit,
     onNavigateToPlayer: (VideoPlayerRoute) -> Unit = {},
     onNavigateToEpisodes: (EpisodesRoute) -> Unit = {},
+    onNavigateToUserProfile: (userId: String) -> Unit = {},
     deviceScreenCornerRadius: Int,
     useDarkTheme: Boolean,
     isAmoled: Boolean,
@@ -541,6 +543,14 @@ fun MediaPage(
                                                     ) + horizontalInsets,
                                                 )
                                             }
+
+                                            CommentsSection(
+                                                targetType = "anime",
+                                                targetId = "anime_${media.id}",
+                                                animeId = media.id,
+                                                onNavigateToUserProfile = onNavigateToUserProfile,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
                                         }
                                     },
                                     contentPadding = PaddingValues(

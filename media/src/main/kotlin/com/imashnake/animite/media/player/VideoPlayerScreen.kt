@@ -42,7 +42,11 @@ import androidx.compose.material.icons.rounded.Replay10
 import androidx.compose.material.icons.rounded.SkipNext
 import androidx.compose.material.icons.rounded.Warning
 import android.content.res.Configuration
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -283,6 +287,34 @@ fun VideoPlayerScreen(
     }
 
     var isMuted by remember { mutableStateOf(false) }
+
+    val attachedExternalSubtitle by viewModel.attachedExternalSubtitle.collectAsState()
+    val externalSubtitleLabel by viewModel.externalSubtitleLabel.collectAsState()
+
+    val subtitlePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri: Uri? ->
+        if (uri != null) {
+            try {
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes != null) {
+                    val subDir = java.io.File(context.filesDir, "raw_subtitles").apply { if (!exists()) mkdirs() }
+                    val dest = java.io.File(subDir, "imported_${System.currentTimeMillis()}.srt")
+                    dest.writeBytes(bytes)
+                    viewModel.attachExternalSubtitle(dest.absolutePath, "ترجمة خارجية")
+                    Toast.makeText(context, "تم إرفاق ملف الترجمة", Toast.LENGTH_SHORT).show()
+                }
+            } catch (e: Exception) {
+                Toast.makeText(context, "تعذر قراءة ملف الترجمة", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    LaunchedEffect(route.initialSubtitleUri) {
+        route.initialSubtitleUri?.let { path ->
+            viewModel.attachExternalSubtitle(path, "ترجمة راو")
+        }
+    }
 
     // Dialog sheets
     var showQualitySheet by remember { mutableStateOf(false) }
@@ -1251,7 +1283,7 @@ fun VideoPlayerScreen(
                     onOpenAudioSheet = { showAudioSheet = true },
                     onOpenSubtitlesSheet = { showSubtitleSheet = true },
                     hasAudioTracks = audioTracks.isNotEmpty(),
-                    hasSubtitleTracks = subtitleTracks.isNotEmpty(),
+                    hasSubtitleTracks = subtitleTracks.isNotEmpty() || !attachedExternalSubtitle.isNullOrEmpty() || route.isRaw || !route.initialSubtitleUri.isNullOrEmpty(),
                     isMuted = isMuted,
                     onToggleMute = {
                         isMuted = !isMuted
@@ -1329,6 +1361,20 @@ fun VideoPlayerScreen(
             subtitlesEnabled = subtitlesEnabled,
             onSelectTrack = { track ->
                 viewModel.selectSubtitleTrack(track)
+            },
+            externalSubtitleName = externalSubtitleLabel,
+            onImportExternalSubtitle = {
+                subtitlePickerLauncher.launch(
+                    arrayOf(
+                        "application/x-subrip",
+                        "text/x-ssa",
+                        "text/plain",
+                        "*/*"
+                    )
+                )
+            },
+            onRemoveExternalSubtitle = {
+                viewModel.removeExternalSubtitle()
             },
             onDismiss = { showSubtitleSheet = false }
         )

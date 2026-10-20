@@ -81,9 +81,9 @@
     <string name="sort_progress">Progress</string>
     <string name="empty_library_message">No anime found in this section</string>
     <string name="empty_library_suggestion">Add anime to your library from the details screen to track your progress</string>
-    <string name="connect_anilist">Connect AniList</string>
-    <string name="guest_user">Local Profile</string>
-    <string name="guest_subtitle">Offline library and personalized progress</string>
+    <string name="connect_anilist">Sign In to Sync Library</string>
+    <string name="guest_user">Local Library</string>
+    <string name="guest_subtitle">Cloud synchronized library and watch progress</string>
     <string name="quick_increment">+1 Ep</string>
-    <string name="view_anilist_profile">Switch to AniList Profile</string>
+    <string name="view_anilist_profile">Cloud Sync Active</string>
 </resources>

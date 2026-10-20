@@ -7,11 +7,12 @@ plugins {
     alias(libs.plugins.hilt)
     alias(libs.plugins.ksp)
     alias(libs.plugins.detekt)
+    alias(libs.plugins.google.services)
 }
 
 android {
     defaultConfig {
-        applicationId = "com.amimena.app"
+        applicationId = "com.animeta.app"
         versionCode = 61
         versionName = "0.7.14-alpha02"
     }
@@ -50,7 +51,7 @@ android {
         checkDependencies = true
     }
 
-    namespace = "com.amimena.app"
+    namespace = "com.animeta.app"
 }
 
 kotlin {
@@ -77,6 +78,7 @@ dependencies {
     implementation(projects.anime)
     implementation(projects.manga)
     implementation(projects.explore)
+    implementation(projects.raw)
 
     // AndroidX
     implementation(libs.androidx.activityCompose)
@@ -109,6 +111,9 @@ dependencies {
     ksp(libs.hilt.android.compiler)
 
     implementation(libs.materialKolor)
+
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.auth)
 
     coreLibraryDesugaring(libs.android.desugaring)
 

@@ -1,7 +1,7 @@
 package com.imashnake.animite
 
 import android.content.Intent
-import com.amimena.app.BuildConfig
+import com.animeta.app.BuildConfig
 import android.content.res.Configuration
 import android.os.Build
 import android.os.Bundle
@@ -65,26 +65,45 @@ import com.imashnake.animite.navigation.AnimeRoute
 import com.imashnake.animite.navigation.EpisodesRoute
 import com.imashnake.animite.navigation.ExploreRoute
 import com.imashnake.animite.navigation.MangaRoute
+import com.imashnake.animite.navigation.RawAnimeRoute
 import com.imashnake.animite.navigation.VideoPlayerRoute
+import com.imashnake.animite.raw.ui.RawAnimeScreen
 import com.imashnake.animite.navigation.NavigationBar
 import com.imashnake.animite.navigation.NavigationBarPaths
 import com.imashnake.animite.navigation.NavigationRail
 import com.imashnake.animite.navigation.ProfileRoute
+import com.google.firebase.Firebase
+import com.google.firebase.auth.auth
 import com.imashnake.animite.navigation.SocialRoute
+import com.imashnake.animite.navigation.UserProfileRoute
+import com.imashnake.animite.navigation.ChatRoute
+import com.imashnake.animite.navigation.FollowListRoute
 import com.imashnake.animite.profile.ProfileScreen
 import com.imashnake.animite.profile.ProfileViewModel
-import com.imashnake.animite.profile.dev.ANILIST_AUTH_DEEPLINK
 import com.imashnake.animite.settings.SettingsPage
 import com.imashnake.animite.settings.SettingsViewModel
 import com.imashnake.animite.settings.Theme
 import com.imashnake.animite.social.SocialScreen
+import com.imashnake.animite.social.ui.chat.ChatScreen
+import com.imashnake.animite.social.ui.profile.FollowListScreen
+import com.imashnake.animite.social.ui.profile.UserProfileScreen
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import androidx.lifecycle.lifecycleScope
+import javax.inject.Inject
+import com.imashnake.animite.media.EpisodeWatchManager
+import com.imashnake.animite.social.data.AuthRepository
+import com.imashnake.animite.social.data.FirestoreSyncRepository
+import com.imashnake.animite.social.model.FirestoreWatchProgress
 
 private const val TAG = "MainActivity"
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+    @Inject lateinit var authRepository: AuthRepository
+    @Inject lateinit var firestoreSyncRepository: FirestoreSyncRepository
+
     private val settingsViewModel: SettingsViewModel by viewModels()
     private val profileViewModel: ProfileViewModel by viewModels()
     var showSplashScreen = true
@@ -112,6 +131,25 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        EpisodeWatchManager.onWatchProgressChanged = { animeId, epNum, prog, posMs, durMs ->
+            val uid = authRepository.currentUid
+            if (!uid.isNullOrBlank() && animeId > 0) {
+                lifecycleScope.launch(Dispatchers.IO) {
+                    firestoreSyncRepository.saveWatchProgress(
+                        uid = uid,
+                        progress = FirestoreWatchProgress(
+                            animeId = animeId,
+                            lastWatchedEpisode = epNum,
+                            lastPositionMs = posMs,
+                            durationMs = durMs,
+                            episodesProgress = mapOf(epNum.toString() to prog.toDouble()),
+                            updatedAt = System.currentTimeMillis()
+                        )
+                    )
+                }
+            }
+        }
 
         installSplashScreen().setKeepOnScreenCondition { showSplashScreen }
         enableEdgeToEdge()
@@ -244,6 +282,9 @@ fun MainScreen(
                             onNavigateToExplore = navController::navigate,
                             onNavigateToPlayer = navController::navigate,
                             onNavigateToEpisodes = navController::navigate,
+                            onNavigateToUserProfile = { userId ->
+                                navController.navigate(UserProfileRoute(userId))
+                            },
                             useDarkTheme = useDarkTheme,
                             isAmoled = isAmoled,
                             deviceScreenCornerRadius = deviceScreenCornerRadius,
@@ -268,14 +309,15 @@ fun MainScreen(
                             onBack = navController::navigateUp,
                         )
                     }
-                    composable<ProfileRoute>(
-                        deepLinks = listOf(
-                            navDeepLink {
-                                uriPattern = ANILIST_AUTH_DEEPLINK
-                                action = Intent.ACTION_VIEW
+                    composable<RawAnimeRoute> {
+                        RawAnimeScreen(
+                            onBack = navController::navigateUp,
+                            onNavigateToPlayer = { playerRoute ->
+                                navController.navigate(playerRoute)
                             }
                         )
-                    ) {
+                    }
+                    composable<ProfileRoute> {
                         ProfileScreen(
                             onNavigateToMediaItem = navController::navigate,
                             onNavigateToSettings = navController::navigate,
@@ -291,7 +333,46 @@ fun MainScreen(
                         SettingsPage(versionName = BuildConfig.VERSION_NAME)
                     }
                     composable<SocialRoute> {
-                        SocialScreen()
+                        SocialScreen(
+                            onNavigateToUserProfile = { userId ->
+                                navController.navigate(UserProfileRoute(userId))
+                            },
+                            onNavigateToChat = { convId, recipientId, name, avatar ->
+                                navController.navigate(ChatRoute(convId, recipientId, name, avatar))
+                            }
+                        )
+                    }
+                    composable<UserProfileRoute> {
+                        UserProfileScreen(
+                            onBack = navController::navigateUp,
+                            onNavigateToFollowers = { userId ->
+                                navController.navigate(FollowListRoute(userId, 0))
+                            },
+                            onNavigateToFollowing = { userId ->
+                                navController.navigate(FollowListRoute(userId, 1))
+                            },
+                            onNavigateToChat = { recipientId, name, avatar ->
+                                val currentUid = com.google.firebase.Firebase.auth.currentUser?.uid.orEmpty()
+                                val convId = if (currentUid < recipientId) "${currentUid}_${recipientId}" else "${recipientId}_${currentUid}"
+                                navController.navigate(ChatRoute(convId, recipientId, name, avatar))
+                            }
+                        )
+                    }
+                    composable<ChatRoute> {
+                        ChatScreen(
+                            onBack = navController::navigateUp
+                        )
+                    }
+                    composable<FollowListRoute> { backStackEntry ->
+                        val route = backStackEntry.toRoute<FollowListRoute>()
+                        FollowListScreen(
+                            userId = route.userId,
+                            initialTab = route.initialTab,
+                            onBack = navController::navigateUp,
+                            onNavigateToUserProfile = { userId ->
+                                navController.navigate(UserProfileRoute(userId))
+                            }
+                        )
                     }
                     composable<ExploreRoute> {
                         ExploreScreen(
@@ -305,6 +386,9 @@ fun MainScreen(
                                         mediaType = mediaType.rawValue,
                                     )
                                 )
+                            },
+                            onNavigateToRawAnime = {
+                                navController.navigate(RawAnimeRoute)
                             }
                         )
                     }

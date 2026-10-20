@@ -8,7 +8,7 @@ import coil3.disk.DiskCache
 import coil3.disk.directory
 import coil3.memory.MemoryCache
 import coil3.util.DebugLogger
-import com.amimena.app.BuildConfig
+import com.animeta.app.BuildConfig
 import dagger.hilt.android.HiltAndroidApp
 
 @HiltAndroidApp

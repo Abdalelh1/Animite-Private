@@ -51,7 +51,8 @@ include(
     ":profile",
     ":settings",
     ":social",
-    ":explore"
+    ":explore",
+    ":raw"
 )
 
 android {

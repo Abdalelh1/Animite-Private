@@ -153,6 +153,7 @@ fun ExploreScreen(
     deviceScreenCornerRadius: Int,
     modifier: Modifier = Modifier,
     contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
+    onNavigateToRawAnime: () -> Unit = {},
     viewModel: ExploreViewModel = hiltViewModel(),
 ) {
     val navigationComponentPaddingValues = when(LocalConfiguration.current.orientation) {
@@ -236,6 +237,31 @@ fun ExploreScreen(
                         .padding(horizontal = LocalPaddings.current.small)
                         .weight(1f)
                 )
+
+                Surface(
+                    color = MaterialTheme.colorScheme.secondaryContainer,
+                    shape = CircleShape,
+                    modifier = Modifier.padding(end = 6.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clickable {
+                                haptic.performHapticFeedback(HapticFeedbackType.Confirm)
+                                onNavigateToRawAnime()
+                            }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "RAW",
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                fontSize = 11.sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
+                    }
+                }
 
                 Surface(
                     color = MaterialTheme.colorScheme.primary,
