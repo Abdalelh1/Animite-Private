@@ -71,6 +71,21 @@ class ProfileViewModel @Inject constructor(
 
     val isLoggedIn = isFirebaseLoggedIn
 
+    /**
+     * AniList login is a *separate* auth system from Firebase/Google login.
+     * The AniList profile branch in ProfileScreen (viewer, anime/manga lists)
+     * can only load when an AniList access token exists: without one,
+     * `fetchViewer` filters out every error and the lists wait on a viewer id
+     * that never arrives, so the screen stays on the loading indicator
+     * forever. Until 8486765 `isLoggedIn` meant exactly this token check;
+     * redefining it as Firebase login pushed every Google user into that
+     * dead branch, which is why the profile page kept loading after Google
+     * sign-in and the username never appeared.
+     */
+    val isAniListLoggedIn = preferencesRepository
+        .accessToken
+        .map { !it.isNullOrEmpty() }
+
     val useProfileColor = preferencesRepository.useProfileColor.filterNotNull()
     val profileColor = preferencesRepository.profileColor.filterNotNull()
     val scoreFormat = preferencesRepository

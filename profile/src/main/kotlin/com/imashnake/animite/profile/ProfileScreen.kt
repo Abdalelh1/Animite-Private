@@ -153,6 +153,8 @@ fun ProfileScreen(
     val allPaddingValues = insetPaddingValues + navigationComponentPaddingValues
 
     val isLoggedIn by viewModel.isLoggedIn.collectAsState(initial = false)
+    val isAniListLoggedIn by viewModel.isAniListLoggedIn.collectAsState(initial = false)
+    val currentFirebaseUser by viewModel.currentFirebaseUser.collectAsState(initial = null)
     val useProfileColor by viewModel.useProfileColor.collectAsState(initial = true)
     val profileColor by viewModel.profileColor.collectAsState(initial = "blue")
     val useExpressiveProgressIndicator by viewModel.useExpressiveProgressIndicator.collectAsState(initial = true)
@@ -196,7 +198,11 @@ fun ProfileScreen(
             .background(MaterialTheme.colorScheme.background)
     ) {
         when {
-            isLoggedIn && !showLocalLibraryInLoggedIn -> when {
+            // The AniList profile branch needs an AniList token, not just a
+            // Firebase/Google login: a Google-only user has no AniList viewer
+            // or lists to load, so gating this branch on Firebase login kept
+            // those users on ProgressIndicatorScreen forever.
+            isAniListLoggedIn && !showLocalLibraryInLoggedIn -> when {
                 data.all { it is Resource.Success } -> viewer.data?.run {
                     MaterialTheme(
                         colorScheme = if (useProfileColor) {
@@ -364,13 +370,18 @@ fun ProfileScreen(
                         viewModel.updateLocalEntryProgress(animeId, nextEp)
                     },
                     onConnectAniList = {
-                        if (isLoggedIn) {
+                        if (isAniListLoggedIn) {
                             showLocalLibraryInLoggedIn = false
-                        } else {
+                        } else if (!isLoggedIn) {
                             showAuthBottomSheet = true
                         }
+                        // Firebase-only user: cloud sync is already active,
+                        // there is no AniList profile to switch to yet.
                     },
                     isLoggedIn = isLoggedIn,
+                    userDisplayName = currentFirebaseUser?.displayName,
+                    userHandle = currentFirebaseUser?.handle,
+                    userPhotoUrl = currentFirebaseUser?.photoUrl,
                     contentPadding = allPaddingValues,
                     modifier = Modifier.fillMaxSize()
                 )

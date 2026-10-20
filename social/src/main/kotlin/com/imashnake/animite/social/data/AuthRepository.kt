@@ -47,9 +47,17 @@ class AuthRepository @Inject constructor(
                             trySend(AuthState.Unauthenticated)
                         }
                     } else {
-                        // User authenticated in Firebase Auth but profile not yet written
+                        // User authenticated in Firebase Auth but profile not yet written.
+                        // Still expose a valid username so the UI never shows a
+                        // signed-in user with a blank handle while the profile
+                        // document is being created.
                         val fallback = AnimiteUser(
                             uid = firebaseUser.uid,
+                            username = UsernameUtils.baseUsernameFor(
+                                displayName = firebaseUser.displayName,
+                                email = firebaseUser.email,
+                                uid = firebaseUser.uid,
+                            ),
                             displayName = firebaseUser.displayName.orEmpty(),
                             photoUrl = firebaseUser.photoUrl?.toString(),
                         )
@@ -124,14 +132,27 @@ class AuthRepository @Inject constructor(
             val existing = userDoc.toObject(AnimiteUser::class.java)
             checkNotNull(existing) { "Failed to parse user profile" }
         } else {
-            // First time Google sign in: generate a safe base username
-            val baseName = (firebaseUser.displayName?.replace("\\s+".toRegex(), "")?.lowercase(Locale.ROOT)
-                ?: "user").filter { it.isLetterOrDigit() }.take(15).ifBlank { "user" }
+            // First time Google sign in: generate a safe base username.
+            // The base MUST be sanitised to [a-z0-9_.] first: isUsernameAvailable
+            // returns false for any invalid candidate, so a Google display name
+            // that is Arabic, spaced or too short made the old loop spin forever
+            // here, the Firestore profile was never written, and sign-in stayed
+            // on Loading with no username anywhere.
+            val baseName = UsernameUtils.baseUsernameFor(
+                displayName = firebaseUser.displayName,
+                email = firebaseUser.email,
+                uid = firebaseUser.uid,
+            )
             var uniqueUsername = baseName
-            var counter = 1
-            while (!isUsernameAvailable(uniqueUsername)) {
-                uniqueUsername = "$baseName$counter"
-                counter++
+            var attempt = 1
+            while (!isUsernameAvailable(uniqueUsername) && attempt <= 100) {
+                uniqueUsername = UsernameUtils.usernameCandidate(baseName, attempt)
+                attempt++
+            }
+            if (!UsernameUtils.isValidUsername(uniqueUsername) ||
+                !isUsernameAvailable(uniqueUsername)
+            ) {
+                uniqueUsername = UsernameUtils.fallbackUsername(baseName, firebaseUser.uid)
             }
 
             val newUser = AnimiteUser(

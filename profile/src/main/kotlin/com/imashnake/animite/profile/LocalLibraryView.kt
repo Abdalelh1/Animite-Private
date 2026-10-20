@@ -94,6 +94,9 @@ fun LocalLibraryView(
     onQuickIncrementEpisode: (Int, Int) -> Unit,
     onConnectAniList: () -> Unit,
     isLoggedIn: Boolean = false,
+    userDisplayName: String? = null,
+    userHandle: String? = null,
+    userPhotoUrl: String? = null,
     modifier: Modifier = Modifier,
     contentPadding: PaddingValues = PaddingValues(),
 ) {
@@ -175,23 +178,36 @@ fun LocalLibraryView(
                             )
                         )
                 ) {
-                    Text(
-                        text = "★",
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    if (!userPhotoUrl.isNullOrBlank()) {
+                        AsyncImage(
+                            model = crossfadeModel(userPhotoUrl),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .size(44.dp)
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        Text(
+                            text = "★",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
 
                 Column {
                     Text(
-                        text = stringResource(R.string.my_library),
+                        text = userDisplayName?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.my_library),
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = stringResource(R.string.guest_subtitle),
+                        text = userHandle?.takeIf { it.isNotBlank() }
+                            ?: stringResource(R.string.guest_subtitle),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
