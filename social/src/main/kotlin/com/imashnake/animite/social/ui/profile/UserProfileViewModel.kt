@@ -8,9 +8,11 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import com.imashnake.animite.navigation.UserProfileRoute
 import com.imashnake.animite.social.data.AuthRepository
+import com.imashnake.animite.social.data.CommentRepository
 import com.imashnake.animite.social.data.SocialRelationshipRepository
 import com.imashnake.animite.social.data.UserProfileRepository
 import com.imashnake.animite.social.model.AnimiteUser
+import com.imashnake.animite.social.model.Comment
 import com.imashnake.animite.social.util.AvatarValidator
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +30,7 @@ import javax.inject.Inject
 class UserProfileViewModel @Inject constructor(
     private val userProfileRepository: UserProfileRepository,
     private val relationshipRepository: SocialRelationshipRepository,
+    private val commentRepository: CommentRepository,
     private val authRepository: AuthRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
@@ -39,6 +42,10 @@ class UserProfileViewModel @Inject constructor(
     val isCurrentUser: Boolean get() = currentUid != null && currentUid == targetUserId
 
     val userProfile: StateFlow<AnimiteUser?> = userProfileRepository.getUserProfile(targetUserId)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(1000), null)
+
+    /** The profile's "posts": comments authored by this user. Null while loading. */
+    val userPosts: StateFlow<List<Comment>?> = commentRepository.getCommentsByUser(targetUserId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(1000), null)
 
     val isFollowing: StateFlow<Boolean> = if (currentUid != null && !isCurrentUser) {
@@ -197,6 +204,18 @@ class UserProfileViewModel @Inject constructor(
     fun uploadAvatar(bytes: ByteArray, mimeType: String = "image/jpeg") {
         lastSelectedImage = Pair(bytes, mimeType)
         executeAvatarUpload(bytes, mimeType)
+    }
+
+    /** Banner counterpart of [onImageSelected], used by the cover photo tap. */
+    fun onBannerImageSelected(context: Context, uri: Uri) {
+        when (val validation = AvatarValidator.validateAndRead(context, uri)) {
+            is AvatarValidator.ValidationResult.Invalid -> {
+                _uiState.value = ProfileUiMessage.Error(validation.reason)
+            }
+            is AvatarValidator.ValidationResult.Valid -> {
+                uploadBanner(validation.bytes)
+            }
+        }
     }
 
     fun uploadBanner(bytes: ByteArray) {

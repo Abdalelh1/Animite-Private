@@ -35,6 +35,35 @@ class CommentRepository @Inject constructor(
         awaitClose { registration.remove() }
     }
 
+    /**
+     * The author's own comments, newest first — these are the "posts" shown on
+     * the social profile's Posts/Replies tabs. Needs the composite index
+     * (authorId ASC, createdAt DESC) declared in firestore.indexes.json.
+     */
+    fun getCommentsByUser(authorId: String, limit: Long = 50): Flow<List<Comment>> = callbackFlow {
+        if (authorId.isBlank()) {
+            trySend(emptyList())
+            close()
+            return@callbackFlow
+        }
+        val query = firestore.collection("comments")
+            .whereEqualTo("authorId", authorId)
+            .orderBy("createdAt", Query.Direction.DESCENDING)
+            .limit(limit)
+
+        val registration = query.addSnapshotListener { snapshot, error ->
+            if (error != null) {
+                trySend(emptyList())
+                return@addSnapshotListener
+            }
+            val list = snapshot?.documents?.mapNotNull { doc ->
+                doc.toObject(Comment::class.java)?.copy(id = doc.id)
+            }.orEmpty()
+            trySend(list)
+        }
+        awaitClose { registration.remove() }
+    }
+
     suspend fun addComment(
         targetType: String,
         targetId: String,
