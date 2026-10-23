@@ -69,6 +69,9 @@ data class UserProfileRoute(
 )
 
 @Serializable
+data object EditProfileRoute
+
+@Serializable
 data class ChatRoute(
     val conversationId: String,
     val recipientId: String,
@@ -81,4 +84,13 @@ data class FollowListRoute(
     val userId: String,
     val initialTab: Int = 0, // 0 = followers, 1 = following
 )
+
+@Serializable
+data object OwnerControlCenterRoute
+
+@Serializable
+data object AccountSettingsRoute
+
+@Serializable
+data object NotificationsRoute
 

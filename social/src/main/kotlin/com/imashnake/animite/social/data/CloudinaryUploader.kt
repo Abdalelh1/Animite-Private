@@ -77,14 +77,30 @@ class CloudinaryUploader @Inject constructor(
         mimeType: String = "image/jpeg",
         preset: String = UPLOAD_PRESET,
         cloud: String = CLOUD_NAME,
+    ): Result<String> = uploadMedia(
+        mediaBytes = imageBytes,
+        mimeType = mimeType,
+        preset = preset,
+        cloud = cloud,
+    )
+
+    /**
+     * Uploads image or video media (MP4/GIF) to Cloudinary.
+     */
+    suspend fun uploadMedia(
+        mediaBytes: ByteArray,
+        mimeType: String,
+        preset: String = UPLOAD_PRESET,
+        cloud: String = CLOUD_NAME,
     ): Result<String> = withContext(Dispatchers.IO) {
+        val isVideo = mimeType == "video/mp4" || mimeType.startsWith("video/")
+        val resourceType = if (isVideo) "video" else "image"
+
         runCatching {
-            // First attempt: try using direct HTTP multipart upload directly to the required endpoint
-            uploadViaHttp(imageBytes, mimeType, preset, cloud)
+            uploadViaHttp(mediaBytes, mimeType, preset, cloud, resourceType)
         }.recoverCatching { httpError ->
-            // Fallback attempt: if direct HTTP fails, try MediaManager SDK if initialized
-            if (isInitialized) {
-                val sdkResult = uploadViaSdk(imageBytes, preset)
+            if (isInitialized && !isVideo) {
+                val sdkResult = uploadViaSdk(mediaBytes, preset)
                 if (sdkResult.isSuccess) {
                     return@recoverCatching sdkResult.getOrThrow()
                 }
@@ -93,17 +109,30 @@ class CloudinaryUploader @Inject constructor(
         }
     }
 
+    /**
+     * Derives a static poster image URL from a Cloudinary video URL.
+     * Replaces .mp4 extension with .jpg for instant Cloudinary-generated poster frame.
+     */
+    fun derivePosterUrl(videoUrl: String): String {
+        return if (videoUrl.contains("/video/upload/", ignoreCase = true) && videoUrl.endsWith(".mp4", ignoreCase = true)) {
+            videoUrl.substringBeforeLast(".mp4") + ".jpg"
+        } else {
+            videoUrl
+        }
+    }
+
     private fun uploadViaHttp(
-        imageBytes: ByteArray,
+        mediaBytes: ByteArray,
         mimeType: String,
         preset: String,
         cloud: String,
+        resourceType: String = "image",
     ): String {
         val boundary = "===AnimiteBoundary" + System.currentTimeMillis() + "==="
         val lineEnd = "\r\n"
         val twoHyphens = "--"
 
-        val endpoint = URL("https://api.cloudinary.com/v1_1/$cloud/image/upload")
+        val endpoint = URL("https://api.cloudinary.com/v1_1/$cloud/$resourceType/upload")
         val conn = endpoint.openConnection() as HttpURLConnection
         try {
             conn.requestMethod = "POST"
@@ -111,14 +140,15 @@ class CloudinaryUploader @Inject constructor(
             conn.doOutput = true
             conn.useCaches = false
             conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-            conn.connectTimeout = 30000
-            conn.readTimeout = 30000
+            conn.connectTimeout = 45000
+            conn.readTimeout = 45000
 
             val extension = when (mimeType) {
                 "image/png" -> "png"
                 "image/webp" -> "webp"
                 "image/gif" -> "gif"
-                else -> "jpg"
+                "video/mp4" -> "mp4"
+                else -> if (resourceType == "video") "mp4" else "jpg"
             }
 
             DataOutputStream(conn.outputStream).use { dos ->
@@ -130,9 +160,9 @@ class CloudinaryUploader @Inject constructor(
 
                 // file field
                 dos.writeBytes("$twoHyphens$boundary$lineEnd")
-                dos.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"avatar.$extension\"$lineEnd")
+                dos.writeBytes("Content-Disposition: form-data; name=\"file\"; filename=\"media.$extension\"$lineEnd")
                 dos.writeBytes("Content-Type: $mimeType$lineEnd$lineEnd")
-                dos.write(imageBytes)
+                dos.write(mediaBytes)
                 dos.writeBytes(lineEnd)
 
                 // End of multipart
@@ -154,7 +184,7 @@ class CloudinaryUploader @Inject constructor(
             val json = JSONObject(responseBody)
             val secureUrl = json.optString("secure_url").ifBlank { json.optString("url") }
             if (secureUrl.isBlank()) {
-                throw Exception("Cloudinary response did not contain a valid image URL")
+                throw Exception("Cloudinary response did not contain a valid media URL")
             }
             return secureUrl
         } finally {

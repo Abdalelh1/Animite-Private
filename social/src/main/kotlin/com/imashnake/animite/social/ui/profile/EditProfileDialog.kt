@@ -13,13 +13,21 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Language
+import androidx.compose.material.icons.filled.LocationOn
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -40,18 +48,33 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.imashnake.animite.social.model.AnimiteUser
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditProfileDialog(
     user: AnimiteUser,
     onDismiss: () -> Unit,
-    onSave: (displayName: String, bio: String, isPrivate: Boolean, allowMessagesFrom: String) -> Unit,
+    onSave: (displayName: String, bio: String, location: String?, websiteUrl: String?, isPrivate: Boolean, allowMessagesFrom: String, username: String?) -> Unit,
     onChangeAvatar: (() -> Unit)? = null,
     isUploadingAvatar: Boolean = false,
 ) {
     var displayName by remember { mutableStateOf(user.displayName) }
+    var username by remember { mutableStateOf(user.username) }
     var bio by remember { mutableStateOf(user.bio) }
+    var location by remember { mutableStateOf(user.location.orEmpty()) }
+    var websiteUrl by remember { mutableStateOf(user.websiteUrl.orEmpty()) }
     var isPrivate by remember { mutableStateOf(user.isPrivate) }
     var allowMessagesFrom by remember { mutableStateOf(user.allowMessagesFrom) }
+    var isMessageMenuExpanded by remember { mutableStateOf(false) }
+
+    // Validation
+    val isDisplayNameValid = displayName.trim().isNotEmpty() && displayName.length <= 50
+    val usernameValidation = com.imashnake.animite.social.validation.ProfileValidator.validateUsername(username)
+    val isUsernameValid = usernameValidation.isValid
+    val isBioValid = bio.length <= 250
+    val isLocationValid = location.length <= 35
+    val isWebsiteValid = websiteUrl.isBlank() || websiteUrl.startsWith("http://") || websiteUrl.startsWith("https://")
+
+    val canSave = isDisplayNameValid && isUsernameValid && isBioValid && isLocationValid && isWebsiteValid
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -67,7 +90,7 @@ fun EditProfileDialog(
                 Box(
                     contentAlignment = Alignment.Center,
                     modifier = Modifier
-                        .size(72.dp)
+                        .size(76.dp)
                         .clip(CircleShape)
                         .clickable(enabled = !isUploadingAvatar && onChangeAvatar != null) {
                             onChangeAvatar?.invoke()
@@ -78,14 +101,14 @@ fun EditProfileDialog(
                         contentDescription = "Profile Picture",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(76.dp)
                             .background(MaterialTheme.colorScheme.surfaceVariant)
                     )
 
                     if (isUploadingAvatar) {
                         Surface(
                             color = MaterialTheme.colorScheme.scrim.copy(alpha = 0.5f),
-                            modifier = Modifier.size(72.dp)
+                            modifier = Modifier.size(76.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 CircularProgressIndicator(
@@ -116,53 +139,190 @@ fun EditProfileDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
+                // Display Name
                 OutlinedTextField(
                     value = displayName,
-                    onValueChange = { displayName = it },
+                    onValueChange = { if (it.length <= 50) displayName = it },
                     label = { Text("Display Name") },
+                    supportingText = {
+                        Text("${displayName.length}/50")
+                    },
+                    isError = !isDisplayNameValid,
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
-                Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
+                // Username (@handle)
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = { input ->
+                        val sanitized = input.trim().removePrefix("@")
+                        if (sanitized.length <= 30) username = sanitized
+                    },
+                    label = { Text(androidx.compose.ui.res.stringResource(com.imashnake.animite.social.R.string.username)) },
+                    prefix = { Text("@") },
+                    supportingText = {
+                        if (usernameValidation is com.imashnake.animite.social.validation.ValidationResult.Invalid) {
+                            Text(usernameValidation.reason, color = MaterialTheme.colorScheme.error)
+                        } else {
+                            Text("${username.length}/30")
+                        }
+                    },
+                    isError = !isUsernameValid,
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Bio
                 OutlinedTextField(
                     value = bio,
-                    onValueChange = { bio = it },
+                    onValueChange = { if (it.length <= 250) bio = it },
                     label = { Text("Bio") },
                     placeholder = { Text("Tell other fans about yourself...") },
+                    supportingText = {
+                        Text("${bio.length}/250")
+                    },
+                    isError = !isBioValid,
                     maxLines = 4,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Location
+                OutlinedTextField(
+                    value = location,
+                    onValueChange = { if (it.length <= 35) location = it },
+                    label = { Text("Location") },
+                    placeholder = { Text("e.g. Tokyo, Japan") },
+                    leadingIcon = {
+                        Icon(Icons.Default.LocationOn, contentDescription = null, modifier = Modifier.size(20.dp))
+                    },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth()
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Website URL
+                OutlinedTextField(
+                    value = websiteUrl,
+                    onValueChange = { websiteUrl = it },
+                    label = { Text("Website") },
+                    placeholder = { Text("https://example.com") },
+                    leadingIcon = {
+                        Icon(Icons.Default.Language, contentDescription = null, modifier = Modifier.size(20.dp))
+                    },
+                    isError = !isWebsiteValid,
+                    supportingText = {
+                        if (!isWebsiteValid) {
+                            Text("Must begin with https:// or http://", color = MaterialTheme.colorScheme.error)
+                        }
+                    },
+                    singleLine = true,
                     modifier = Modifier.fillMaxWidth()
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
+                // Direct Messages permission selector
+                ExposedDropdownMenuBox(
+                    expanded = isMessageMenuExpanded,
+                    onExpandedChange = { isMessageMenuExpanded = !isMessageMenuExpanded },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("Private Account", fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "Only approved followers can see full activity",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                    OutlinedTextField(
+                        value = when (allowMessagesFrom) {
+                            "followers" -> "Followers Only"
+                            "none" -> "No One"
+                            else -> "Everyone"
+                        },
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Allow Direct Messages From") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = isMessageMenuExpanded) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .menuAnchor(MenuAnchorType.PrimaryNotEditable)
+                    )
+                    ExposedDropdownMenu(
+                        expanded = isMessageMenuExpanded,
+                        onDismissRequest = { isMessageMenuExpanded = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("Everyone") },
+                            onClick = {
+                                allowMessagesFrom = "everyone"
+                                isMessageMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("Followers Only") },
+                            onClick = {
+                                allowMessagesFrom = "followers"
+                                isMessageMenuExpanded = false
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("No One") },
+                            onClick = {
+                                allowMessagesFrom = "none"
+                                isMessageMenuExpanded = false
+                            }
                         )
                     }
-                    Switch(
-                        checked = isPrivate,
-                        onCheckedChange = { isPrivate = it }
-                    )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // Private Account switch
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Private Account", fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Only approved followers can see full activity",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = isPrivate,
+                            onCheckedChange = { isPrivate = it }
+                        )
+                    }
                 }
             }
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (displayName.isNotBlank()) {
-                        onSave(displayName, bio, isPrivate, allowMessagesFrom)
+                    if (canSave) {
+                        onSave(
+                            displayName.trim(),
+                            bio.trim(),
+                            location.trim().ifEmpty { null },
+                            websiteUrl.trim().ifEmpty { null },
+                            isPrivate,
+                            allowMessagesFrom,
+                            username.trim().removePrefix("@")
+                        )
                     }
-                }
+                },
+                enabled = canSave
             ) {
                 Text("Save", fontWeight = FontWeight.Bold)
             }

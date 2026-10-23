@@ -58,4 +58,72 @@ class SocialModelsTest {
         assertEquals(0, conversation.getUnreadCount(uid1))
         assertEquals(3, conversation.getUnreadCount(uid2))
     }
+
+    @Test
+    fun animiteUser_roleAndBadge_helpersWorkAsExpected() {
+        val normalUser = AnimiteUser(uid = "1", role = "user")
+        assertFalse(normalUser.isOwner)
+        assertFalse(normalUser.isAdmin)
+        assertFalse(normalUser.isModerator)
+        assertEquals(null, normalUser.badgeLabel)
+
+        val modUser = AnimiteUser(uid = "2", role = "moderator")
+        assertFalse(modUser.isOwner)
+        assertFalse(modUser.isAdmin)
+        assertTrue(modUser.isModerator)
+        assertEquals("مشرف", modUser.badgeLabel)
+
+        val adminUser = AnimiteUser(uid = "3", role = "admin")
+        assertFalse(adminUser.isOwner)
+        assertTrue(adminUser.isAdmin)
+        assertTrue(adminUser.isModerator)
+        assertEquals("مدير النظام", adminUser.badgeLabel)
+
+        val ownerUser = AnimiteUser(uid = "4", role = "owner")
+        assertTrue(ownerUser.isOwner)
+        assertTrue(ownerUser.isAdmin)
+        assertTrue(ownerUser.isModerator)
+        assertEquals("مالك التطبيق", ownerUser.badgeLabel)
+
+        val customBadgeUser = AnimiteUser(uid = "5", role = "user", customBadgeTitle = "مشرف الفعاليات")
+        assertEquals("مشرف الفعاليات", customBadgeUser.badgeLabel)
+        assertTrue(customBadgeUser.hasBadge)
+    }
+
+    @Test
+    fun comment_authorRole_helpersWorkAsExpected() {
+        val ownerComment = Comment(id = "c1", authorRole = "owner")
+        assertTrue(ownerComment.isAuthorOwner)
+        assertTrue(ownerComment.isAuthorAdmin)
+        assertEquals("مالك التطبيق", ownerComment.authorBadgeLabel)
+
+        val customComment = Comment(id = "c2", authorRole = "moderator", authorCustomBadge = "المطور")
+        assertEquals("المطور", customComment.authorBadgeLabel)
+    }
+
+    @Test
+    fun animiteUser_liveCoverHelpersWorkAsExpected() {
+        val userNoCover = AnimiteUser(uid = "u1")
+        assertFalse(userNoCover.hasLiveCover)
+        assertFalse(userNoCover.isLiveCoverVideo)
+        assertFalse(userNoCover.isLiveCoverGif)
+
+        val userMp4 = AnimiteUser(
+            uid = "u2",
+            liveCoverUrl = "https://res.cloudinary.com/demo/video/upload/cover.mp4",
+            liveCoverMediaType = "video/mp4"
+        )
+        assertTrue(userMp4.hasLiveCover)
+        assertTrue(userMp4.isLiveCoverVideo)
+        assertFalse(userMp4.isLiveCoverGif)
+
+        val userGif = AnimiteUser(
+            uid = "u3",
+            liveCoverUrl = "https://res.cloudinary.com/demo/image/upload/cover.gif",
+            liveCoverMediaType = "image/gif"
+        )
+        assertTrue(userGif.hasLiveCover)
+        assertFalse(userGif.isLiveCoverVideo)
+        assertTrue(userGif.isLiveCoverGif)
+    }
 }

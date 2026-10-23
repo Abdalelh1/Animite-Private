@@ -76,12 +76,28 @@ class AuthRepository @Inject constructor(
         !doc.exists()
     }.getOrDefault(true)
 
+    private suspend fun checkRegistrationAllowed() {
+        val settingsDoc = firestore.collection("system_settings").document("config").get().await()
+        if (settingsDoc.exists()) {
+            val isMaintenance = settingsDoc.getBoolean("maintenanceMode") ?: false
+            if (isMaintenance) {
+                throw IllegalStateException("نظام Animeta في وضع الصيانة حالياً. تعذر إنشاء حساب جديد.")
+            }
+            val allowRegistrations = settingsDoc.getBoolean("allowRegistrations") ?: true
+            if (!allowRegistrations) {
+                throw IllegalStateException("التسجيل مغلق حالياً بأمر إدارة التطبيق.")
+            }
+        }
+    }
+
     suspend fun signUpWithEmail(
         email: String,
         pass: String,
         username: String,
         displayName: String,
     ): Result<AnimiteUser> = runCatching {
+        checkRegistrationAllowed()
+
         val cleanUsername = username.trim().lowercase(Locale.ROOT)
         require(cleanUsername.length in 3..30) { "Username must be between 3 and 30 characters" }
         require(cleanUsername.matches(Regex("^[a-z0-9_.]+$"))) {
@@ -132,6 +148,8 @@ class AuthRepository @Inject constructor(
             val existing = userDoc.toObject(AnimiteUser::class.java)
             checkNotNull(existing) { "Failed to parse user profile" }
         } else {
+            checkRegistrationAllowed()
+
             // First time Google sign in: generate a safe base username.
             // The base MUST be sanitised to [a-z0-9_.] first: isUsernameAvailable
             // returns false for any invalid candidate, so a Google display name

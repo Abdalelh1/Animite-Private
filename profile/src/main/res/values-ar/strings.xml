@@ -89,5 +89,5 @@
     <string name="guest_user">المكتبة المحلية</string>
     <string name="guest_subtitle">مكتبة متزامنة مع السحاب وتقدم المشاهدة</string>
     <string name="quick_increment">+1 حلقة</string>
-    <string name="view_anilist_profile">مزامنة السحاب متصلة</string>
+    <string name="view_anilist_profile">عرض الملف الشخصي المتصل</string>
 </resources>

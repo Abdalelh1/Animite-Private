@@ -106,6 +106,18 @@ class MessagingRepository @Inject constructor(
         require(cleanText.isNotBlank()) { "Message cannot be empty" }
         require(cleanText.length <= 4000) { "Message exceeds 4000 character limit" }
 
+        val settingsDoc = firestore.collection("system_settings").document("config").get().await()
+        if (settingsDoc.exists()) {
+            val isMaintenance = settingsDoc.getBoolean("maintenanceMode") ?: false
+            if (isMaintenance && !sender.isOwner) {
+                throw IllegalStateException("نظام Animeta في وضع الصيانة حالياً. المراسلة متوقفة.")
+            }
+            val dmsEnabled = settingsDoc.getBoolean("directMessagesEnabled") ?: true
+            if (!dmsEnabled && !sender.isModerator && !sender.isOwner) {
+                throw IllegalStateException("المراسلة الخاصة متوقفة مؤقتاً بأمر إدارة التطبيق.")
+            }
+        }
+
         val convId = getConversationId(sender.uid, recipient.uid)
         val convRef = firestore.collection("conversations").document(convId)
         val msgRef = convRef.collection("messages").document()

@@ -81,9 +81,11 @@ class CommentsViewModel @Inject constructor(
     }
 
     fun deleteComment(commentId: String) {
-        val uid = currentUid ?: return
+        val currentUser = (authState.value as? AuthState.Authenticated)?.user
+        val uid = currentUser?.uid ?: currentUid ?: return
+        val isModerator = currentUser?.isModerator ?: false
         viewModelScope.launch(Dispatchers.IO) {
-            commentRepository.deleteComment(commentId, uid)
+            commentRepository.deleteComment(commentId, uid, isModerator = isModerator)
         }
     }
 

@@ -44,6 +44,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.imashnake.animite.social.ui.auth.AuthBottomSheet
+import com.imashnake.animite.social.ui.profile.UserProfileScreen
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -138,6 +139,12 @@ fun ProfileScreen(
     isAmoled: Boolean,
     sharedTransitionScope: SharedTransitionScope,
     animatedVisibilityScope: AnimatedVisibilityScope,
+    onNavigateToUserProfile: ((String) -> Unit)? = null,
+    onNavigateToFollowers: ((String) -> Unit)? = null,
+    onNavigateToFollowing: ((String) -> Unit)? = null,
+    onNavigateToChat: ((String, String, String?) -> Unit)? = null,
+    onNavigateToEditProfile: (() -> Unit)? = null,
+    onNavigateToAccountSettings: (() -> Unit)? = null,
     contentWindowInsets: WindowInsets = WindowInsets.systemBars.union(WindowInsets.displayCutout),
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
@@ -197,214 +204,16 @@ fun ProfileScreen(
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
     ) {
-        when {
-            // The AniList profile branch needs an AniList token, not just a
-            // Firebase/Google login: a Google-only user has no AniList viewer
-            // or lists to load, so gating this branch on Firebase login kept
-            // those users on ProgressIndicatorScreen forever.
-            isAniListLoggedIn && !showLocalLibraryInLoggedIn -> when {
-                data.all { it is Resource.Success } -> viewer.data?.run {
-                    MaterialTheme(
-                        colorScheme = if (useProfileColor) {
-                            rememberColorSchemeFor(
-                                color = profileColorToHex(profileColor).toColorInt(),
-                                useDarkTheme = useDarkTheme,
-                                isAmoled = isAmoled
-                            )
-                        } else MaterialTheme.colorScheme
-                    ) {
-                        LaunchedEffect(avatar) {
-                            if (viewerAvatar != avatar) viewModel.saveViewerAvatar(avatar)
-                        }
-
-                        var isRefreshing by remember { mutableStateOf(false) }
-                        val pullToRefreshState = rememberPullToRefreshState()
-
-                        var isBannerExpanded by remember { mutableStateOf(true) }
-                        PullToRefreshBox(
-                            isRefreshing = isRefreshing,
-                            onRefresh = { viewModel.refresh { isRefreshing = it } },
-                            state = pullToRefreshState,
-                        ) {
-                            NestedScrollBannerLayout(
-                                isExpanded = isBannerExpanded,
-                                banner = { ratio, modifier ->
-                                    val animRatio by animateFloatAsState(ratio)
-                                    Box(Modifier.background(MaterialTheme.colorScheme.surfaceContainer)) {
-                                        AsyncImage(
-                                            model = crossfadeModel(banner),
-                                            contentDescription = null,
-                                            alpha = 1.2f * animRatio - 0.2f,
-                                            modifier = modifier,
-                                            contentScale = ContentScale.Crop
-                                        )
-                                        AsyncImage(
-                                            model = crossfadeModel(avatar),
-                                            contentDescription = stringResource(R.string.avatar),
-                                            modifier = Modifier
-                                                .align(Alignment.BottomStart)
-                                                .padding(start = LocalPaddings.current.large)
-                                                .padding(allPaddingValues.horizontalOnly)
-                                                .wrapContentSize()
-                                                .maxHeight(100.dp)
-                                                .clip(
-                                                    RoundedCornerShape(
-                                                        topStart = LocalPaddings.current.small,
-                                                        topEnd = LocalPaddings.current.small,
-                                                    )
-                                                )
-                                                .graphicsLayer { alpha = 1.5f * animRatio - 0.5f },
-                                        )
-                                    }
-                                },
-                                bannerElevatedContent = { ratio ->
-                                    val animRatio by animateFloatAsState(ratio)
-                                    SettingsAndMore(
-                                        isBannerExpanded = isBannerExpanded,
-                                        onBannerExpanded = { isBannerExpanded = !isBannerExpanded },
-                                        onNavigateToSettings = onNavigateToSettings,
-                                        onToggleLocalLibrary = { showLocalLibraryInLoggedIn = true },
-                                        logOut = { isLogOutDialogShown = true },
-                                        expanded = isDropdownExpanded,
-                                        setExpanded = { isDropdownExpanded = it },
-                                        modifier = Modifier
-                                            .align(Alignment.TopEnd)
-                                            .padding(allPaddingValues.copy(bottom = 0.dp))
-                                            .padding(
-                                                start = LocalPaddings.current.large,
-                                                bottom = LocalPaddings.current.large,
-                                                end = LocalPaddings.current.large
-                                            )
-                                            .padding(top = LocalPaddings.current.large * animRatio)
-                                    )
-                                },
-                                content = {
-                                    Column(
-                                        verticalArrangement = Arrangement.spacedBy(
-                                            LocalPaddings.current.ultraTiny
-                                        )
-                                    ) {
-                                        Column(
-                                            modifier = Modifier
-                                                .padding(horizontal = LocalPaddings.current.large)
-                                                .padding(allPaddingValues.horizontalOnly)
-                                        ) {
-                                            Text(
-                                                text = name,
-                                                color = MaterialTheme.colorScheme.onBackground,
-                                                style = MaterialTheme.typography.titleLarge,
-                                                overflow = TextOverflow.Ellipsis,
-                                                modifier = Modifier
-                                                    .clip(RoundedCornerShape(LocalPaddings.current.small))
-                                                    .clickable {
-                                                        showUserDescriptionSheet = true
-                                                    }
-                                            )
-                                        }
-                                        UserTabs(
-                                            user = this@run,
-                                            animeCollection = viewerAnimeLists.data,
-                                            mangaCollection = viewerMangaLists.data,
-                                            updateAnimeListsOrder = viewModel::updateAnimeLists,
-                                            updateMangaListsOrder = viewModel::updateMangaLists,
-                                            updateEntry = viewModel::updateMediaListEntry,
-                                            favouriteEntry = viewModel::toggleFavourite,
-                                            onNavigateToMediaItem = onNavigateToMediaItem,
-                                            showUserDescription = showUserDescription,
-                                            onUserDescriptionClick = { showUserDescriptionSheet = true },
-                                            useExpressiveProgressIndicator = useExpressiveProgressIndicator,
-                                            sharedTransitionScope = sharedTransitionScope,
-                                            animatedVisibilityScope = animatedVisibilityScope,
-                                            contentPadding = navigationComponentPaddingValues + insetPaddingValues,
-                                        )
-                                    }
-                                },
-                                contentBackgroundColor = MaterialTheme.colorScheme.surfaceContainer,
-                                contentPadding = PaddingValues(top = LocalPaddings.current.large / 2)
-                            )
-                        }
-
-                        if (showUserDescriptionSheet) {
-                            BottomSheet(
-                                sheetState = userDescriptionSheetState,
-                                onDismissRequest = { showUserDescriptionSheet = false },
-                                deviceScreenCornerRadiusDp = deviceScreenCornerRadiusDp,
-                                contentPadding = PaddingValues(
-                                    horizontal = LocalPaddings.current.large,
-                                    vertical = LocalPaddings.current.medium
-                                ),
-                                modifier = Modifier,
-                            ) { paddingValues, modifier ->
-                                Column(modifier) {
-                                    Text(
-                                        text = this@run.name,
-                                        color = MaterialTheme.colorScheme.onBackground,
-                                        style = MaterialTheme.typography.titleLarge,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(MaterialTheme.colorScheme.surfaceContainerHighest)
-                                            .padding(paddingValues)
-                                    )
-
-                                    this@run.description?.let {
-                                        UserDescriptionMarkdown(
-                                            content = it,
-                                            modifier = Modifier.padding(paddingValues)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-
-                else -> ProgressIndicatorScreen(Modifier.padding(allPaddingValues))
-            }
-
-            else -> {
-                LocalLibraryView(
-                    entries = localEntries,
-                    onNavigateToMediaItem = onNavigateToMediaItem,
-                    onNavigateToSettings = onNavigateToSettings,
-                    onQuickIncrementEpisode = { animeId, nextEp ->
-                        viewModel.updateLocalEntryProgress(animeId, nextEp)
-                    },
-                    onConnectAniList = {
-                        if (isAniListLoggedIn) {
-                            showLocalLibraryInLoggedIn = false
-                        } else if (!isLoggedIn) {
-                            showAuthBottomSheet = true
-                        }
-                        // Firebase-only user: cloud sync is already active,
-                        // there is no AniList profile to switch to yet.
-                    },
-                    isLoggedIn = isLoggedIn,
-                    userDisplayName = currentFirebaseUser?.displayName,
-                    userHandle = currentFirebaseUser?.handle,
-                    userPhotoUrl = currentFirebaseUser?.photoUrl,
-                    contentPadding = allPaddingValues,
-                    modifier = Modifier.fillMaxSize()
-                )
-            }
-        }
-
-        if (isLogOutDialogShown)
-            LogOutDialog(
-                logOut = {
-                    viewModel.logOut()
-                    isLogOutDialogShown = false
-                },
-                dismiss = {
-                    isLogOutDialogShown = false
-                    isDropdownExpanded = false
-                },
-            )
-
-        if (showAuthBottomSheet) {
-            AuthBottomSheet(
-                onDismissRequest = { showAuthBottomSheet = false }
-            )
-        }
+        UserProfileScreen(
+            onBack = null,
+            onNavigateToFollowers = { userId -> onNavigateToFollowers?.invoke(userId) },
+            onNavigateToFollowing = { userId -> onNavigateToFollowing?.invoke(userId) },
+            onNavigateToChat = { userId, name, avatar -> onNavigateToChat?.invoke(userId, name, avatar) },
+            onNavigateToEditProfile = { onNavigateToEditProfile?.invoke() },
+            onNavigateToSettings = { onNavigateToSettings(SettingsPage) },
+            onNavigateToAccountSettings = onNavigateToAccountSettings,
+            modifier = Modifier.fillMaxSize()
+        )
     }
 }
 

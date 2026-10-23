@@ -93,6 +93,7 @@ fun LocalLibraryView(
     onNavigateToSettings: (SettingsPage) -> Unit,
     onQuickIncrementEpisode: (Int, Int) -> Unit,
     onConnectAniList: () -> Unit,
+    onNavigateToUserProfile: (() -> Unit)? = null,
     isLoggedIn: Boolean = false,
     userDisplayName: String? = null,
     userHandle: String? = null,
@@ -162,7 +163,16 @@ fun LocalLibraryView(
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .then(
+                        if (isLoggedIn && onNavigateToUserProfile != null) {
+                            Modifier.clickable { onNavigateToUserProfile() }
+                        } else {
+                            Modifier
+                        }
+                    )
             ) {
                 Box(
                     contentAlignment = Alignment.Center,

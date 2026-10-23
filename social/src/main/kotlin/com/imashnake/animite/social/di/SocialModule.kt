@@ -7,6 +7,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.FirebaseFirestoreSettings
 import com.google.firebase.firestore.PersistentCacheSettings
 import com.google.firebase.firestore.firestore
+import com.google.firebase.functions.functions
 import com.google.firebase.storage.FirebaseStorage
 import com.google.firebase.storage.storage
 import dagger.Module
@@ -44,5 +45,19 @@ object SocialModule {
     @Singleton
     fun provideFirebaseStorage(): FirebaseStorage {
         return Firebase.storage
+    }
+
+    @Provides
+    @Singleton
+    fun provideFirebaseFunctions(): com.google.firebase.functions.FirebaseFunctions {
+        return Firebase.functions
+    }
+
+    @Provides
+    @Singleton
+    fun provideOwnerRepository(
+        ownerRepository: com.imashnake.animite.social.data.OwnerRepository
+    ): com.imashnake.animite.social.data.IOwnerRepository {
+        return ownerRepository
     }
 }

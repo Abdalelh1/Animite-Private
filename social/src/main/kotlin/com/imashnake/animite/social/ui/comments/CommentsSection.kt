@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FavoriteBorder
 import androidx.compose.material.icons.filled.Flag
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -37,12 +38,14 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.unit.sp
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -222,6 +225,8 @@ fun CommentsSection(
                 )
             }
         } else {
+            val currentUser = (authState as? AuthState.Authenticated)?.user
+            val isModerator = currentUser?.isModerator ?: false
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -232,6 +237,7 @@ fun CommentsSection(
                     CommentItem(
                         comment = comment,
                         isMyComment = comment.authorId == viewModel.currentUid,
+                        isModerator = isModerator,
                         onLike = { viewModel.toggleLike(comment.id) },
                         onDelete = { viewModel.deleteComment(comment.id) },
                         onReport = { reason -> viewModel.reportComment(comment.id, reason) },
@@ -251,6 +257,7 @@ fun CommentsSection(
 fun CommentItem(
     comment: Comment,
     isMyComment: Boolean,
+    isModerator: Boolean = false,
     onLike: () -> Unit,
     onDelete: () -> Unit,
     onReport: (reason: String) -> Unit,
@@ -291,12 +298,50 @@ fun CommentItem(
                         .weight(1f)
                         .clickable(onClick = onAuthorClick)
                 ) {
-                    Text(
-                        text = comment.authorDisplayName,
-                        fontWeight = FontWeight.Bold,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = comment.authorDisplayName,
+                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        if (comment.isAuthorOwner || comment.isAuthorAdmin) {
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Surface(
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(14.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Check,
+                                        contentDescription = "Verified",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                }
+                            }
+                        }
+                        comment.authorBadgeLabel?.let { label ->
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = if (comment.isAuthorOwner) {
+                                    MaterialTheme.colorScheme.primary.copy(alpha = 0.15f)
+                                } else {
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.15f)
+                                }
+                            ) {
+                                Text(
+                                    text = label,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (comment.isAuthorOwner) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                    }
                     Text(
                         text = "@${comment.authorUsername}",
                         style = MaterialTheme.typography.labelSmall,
@@ -313,16 +358,22 @@ fun CommentItem(
                         expanded = showMenu,
                         onDismissRequest = { showMenu = false }
                     ) {
-                        if (isMyComment && !comment.isDeleted) {
+                        if ((isMyComment || isModerator) && !comment.isDeleted) {
                             DropdownMenuItem(
-                                text = { Text("Delete Comment", color = MaterialTheme.colorScheme.error) },
+                                text = {
+                                    Text(
+                                        if (isMyComment) "Delete Comment" else "Delete Comment (Admin)",
+                                        color = MaterialTheme.colorScheme.error
+                                    )
+                                },
                                 leadingIcon = { Icon(Icons.Default.Delete, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
                                 onClick = {
                                     showMenu = false
                                     onDelete()
                                 }
                             )
-                        } else {
+                        }
+                        if (!isMyComment) {
                             DropdownMenuItem(
                                 text = { Text("Report Comment") },
                                 leadingIcon = { Icon(Icons.Default.Flag, contentDescription = null) },

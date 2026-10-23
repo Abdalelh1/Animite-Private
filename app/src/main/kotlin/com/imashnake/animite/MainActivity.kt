@@ -32,8 +32,11 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -78,15 +81,23 @@ import com.imashnake.animite.navigation.SocialRoute
 import com.imashnake.animite.navigation.UserProfileRoute
 import com.imashnake.animite.navigation.ChatRoute
 import com.imashnake.animite.navigation.FollowListRoute
+import com.imashnake.animite.navigation.OwnerControlCenterRoute
 import com.imashnake.animite.profile.ProfileScreen
 import com.imashnake.animite.profile.ProfileViewModel
 import com.imashnake.animite.settings.SettingsPage
 import com.imashnake.animite.settings.SettingsViewModel
 import com.imashnake.animite.settings.Theme
 import com.imashnake.animite.social.SocialScreen
+import com.imashnake.animite.navigation.EditProfileRoute
+import com.imashnake.animite.navigation.AccountSettingsRoute
 import com.imashnake.animite.social.ui.chat.ChatScreen
+import com.imashnake.animite.social.ui.profile.AccountSettingsScreen
+import com.imashnake.animite.social.ui.profile.EditProfileScreen
 import com.imashnake.animite.social.ui.profile.FollowListScreen
 import com.imashnake.animite.social.ui.profile.UserProfileScreen
+import com.imashnake.animite.navigation.NotificationsRoute
+import com.imashnake.animite.social.ui.notifications.NotificationScreen
+import com.imashnake.animite.social.ui.owner.OwnerControlCenterScreen
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.Dispatchers
@@ -103,6 +114,7 @@ private const val TAG = "MainActivity"
 class MainActivity : ComponentActivity() {
     @Inject lateinit var authRepository: AuthRepository
     @Inject lateinit var firestoreSyncRepository: FirestoreSyncRepository
+    @Inject lateinit var ownerRepository: com.imashnake.animite.social.data.IOwnerRepository
 
     private val settingsViewModel: SettingsViewModel by viewModels()
     private val profileViewModel: ProfileViewModel by viewModels()
@@ -179,7 +191,18 @@ class MainActivity : ComponentActivity() {
 
             val dayHour by settingsViewModel.dayHour.collectAsState(initial = null)
 
-            val avatar by profileViewModel.viewerAvatar.collectAsState(initial = null)
+            val aniListAvatar by profileViewModel.viewerAvatar.collectAsState(initial = null)
+
+            val systemSettings by ownerRepository.getSystemSettings().collectAsState(initial = com.imashnake.animite.social.model.SystemSettings.DEFAULT)
+            val authState by authRepository.authState.collectAsState(initial = com.imashnake.animite.social.model.AuthState.Loading)
+            val currentUser = (authState as? com.imashnake.animite.social.model.AuthState.Authenticated)?.user
+            val isOwner = currentUser?.isOwner == true
+            val avatar = currentUser?.photoUrl ?: aniListAvatar
+
+            var showOwnerBypassLoginDialog by remember { mutableStateOf(false) }
+            var bypassErrorMessage by remember { mutableStateOf<String?>(null) }
+            var isBypassSubmitting by remember { mutableStateOf(false) }
+            val coroutineScope = rememberCoroutineScope()
 
             AnimiteTheme(
                 paddings = rememberDefaultPaddings(Density.valueOf(density)),
@@ -188,16 +211,52 @@ class MainActivity : ComponentActivity() {
                 useSystemColorScheme = useSystemColorScheme,
                 dayHour = dayHour
             ) {
-                MainScreen(
-                    deviceScreenCornerRadius = getDeviceScreenCornerRadius(),
-                    useDarkTheme = useDarkTheme,
-                    isAmoled = isAmoled,
-                    avatar = avatar,
-                    showUserDescription = showUserDescription,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.background)
-                )
+                if (systemSettings.maintenanceMode && !isOwner) {
+                    com.imashnake.animite.social.ui.owner.MaintenanceModeScreen(
+                        settings = systemSettings,
+                        onOwnerLoginClick = { showOwnerBypassLoginDialog = true }
+                    )
+
+                    if (showOwnerBypassLoginDialog) {
+                        com.imashnake.animite.social.ui.owner.OwnerBypassLoginDialog(
+                            onDismiss = {
+                                showOwnerBypassLoginDialog = false
+                                bypassErrorMessage = null
+                            },
+                            isSubmitting = isBypassSubmitting,
+                            errorMessage = bypassErrorMessage,
+                            onLogin = { email, pass ->
+                                isBypassSubmitting = true
+                                bypassErrorMessage = null
+                                coroutineScope.launch {
+                                    val res = authRepository.signInWithEmail(email, pass)
+                                    isBypassSubmitting = false
+                                    res.onSuccess { loggedUser ->
+                                        if (loggedUser.isOwner) {
+                                            showOwnerBypassLoginDialog = false
+                                        } else {
+                                            bypassErrorMessage = "هذا الحساب ليس مسجلاً كمالك للتطبيق."
+                                        }
+                                    }.onFailure { err ->
+                                        bypassErrorMessage = err.message ?: "فشل تسجيل الدخول"
+                                    }
+                                }
+                            }
+                        )
+                    }
+                } else {
+                    MainScreen(
+                        deviceScreenCornerRadius = getDeviceScreenCornerRadius(),
+                        useDarkTheme = useDarkTheme,
+                        isAmoled = isAmoled,
+                        avatar = avatar,
+                        showUserDescription = showUserDescription,
+                        isMaintenanceActiveForOwner = systemSettings.maintenanceMode && isOwner,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                    )
+                }
             }
         }
     }
@@ -223,6 +282,7 @@ fun MainScreen(
     isAmoled: Boolean,
     avatar: String?,
     showUserDescription: Boolean,
+    isMaintenanceActiveForOwner: Boolean = false,
     modifier: Modifier = Modifier,
 ) {
     val navController = rememberNavController()
@@ -327,10 +387,35 @@ fun MainScreen(
                             isAmoled = isAmoled,
                             sharedTransitionScope = this@SharedTransitionLayout,
                             animatedVisibilityScope = this,
+                            onNavigateToUserProfile = { userId ->
+                                navController.navigate(UserProfileRoute(userId))
+                            },
+                            onNavigateToFollowers = { userId ->
+                                navController.navigate(FollowListRoute(userId, 0))
+                            },
+                            onNavigateToFollowing = { userId ->
+                                navController.navigate(FollowListRoute(userId, 1))
+                            },
+                            onNavigateToChat = { recipientId, name, avatar ->
+                                val currentUid = com.google.firebase.Firebase.auth.currentUser?.uid.orEmpty()
+                                val convId = if (currentUid < recipientId) "${currentUid}_${recipientId}" else "${recipientId}_${currentUid}"
+                                navController.navigate(ChatRoute(convId, recipientId, name, avatar))
+                            },
+                            onNavigateToEditProfile = {
+                                navController.navigate(EditProfileRoute)
+                            },
+                            onNavigateToAccountSettings = {
+                                navController.navigate(AccountSettingsRoute)
+                            },
                         )
                     }
                     composable<SettingsPage> {
-                        SettingsPage(versionName = BuildConfig.VERSION_NAME)
+                        SettingsPage(
+                            versionName = BuildConfig.VERSION_NAME,
+                            onNavigateToAccountSettings = {
+                                navController.navigate(AccountSettingsRoute)
+                            }
+                        )
                     }
                     composable<SocialRoute> {
                         SocialScreen(
@@ -339,6 +424,29 @@ fun MainScreen(
                             },
                             onNavigateToChat = { convId, recipientId, name, avatar ->
                                 navController.navigate(ChatRoute(convId, recipientId, name, avatar))
+                            },
+                            onNavigateToNotifications = {
+                                navController.navigate(NotificationsRoute)
+                            }
+                        )
+                    }
+                    composable<NotificationsRoute> {
+                        NotificationScreen(
+                            onBack = navController::navigateUp,
+                            onNavigateToUserProfile = { userId ->
+                                navController.navigate(UserProfileRoute(userId))
+                            },
+                            onNavigateToAnime = { animeId ->
+                                navController.navigate(
+                                    MediaPage(
+                                        id = animeId,
+                                        source = "Notification",
+                                        mediaType = "ANIME"
+                                    )
+                                )
+                            },
+                            onNavigateToPost = { _ ->
+                                navController.navigate(SocialRoute)
                             }
                         )
                     }
@@ -355,7 +463,43 @@ fun MainScreen(
                                 val currentUid = com.google.firebase.Firebase.auth.currentUser?.uid.orEmpty()
                                 val convId = if (currentUid < recipientId) "${currentUid}_${recipientId}" else "${recipientId}_${currentUid}"
                                 navController.navigate(ChatRoute(convId, recipientId, name, avatar))
+                            },
+                            onNavigateToEditProfile = {
+                                navController.navigate(EditProfileRoute)
+                            },
+                            onNavigateToSettings = {
+                                navController.navigate(SettingsPage)
+                            },
+                            onNavigateToOwnerControlCenter = {
+                                navController.navigate(OwnerControlCenterRoute)
+                            },
+                            onNavigateToAccountSettings = {
+                                navController.navigate(AccountSettingsRoute)
                             }
+                        )
+                    }
+                    composable<AccountSettingsRoute> {
+                        AccountSettingsScreen(
+                            onBack = navController::navigateUp,
+                            onNavigateToEditProfile = {
+                                navController.navigate(EditProfileRoute)
+                            },
+                            onSignOut = {
+                                navController.navigate(ProfileRoute()) {
+                                    popUpTo(0) { inclusive = true }
+                                    launchSingleTop = true
+                                }
+                            }
+                        )
+                    }
+                    composable<OwnerControlCenterRoute> {
+                        OwnerControlCenterScreen(
+                            onBack = navController::navigateUp
+                        )
+                    }
+                    composable<EditProfileRoute> {
+                        EditProfileScreen(
+                            onBack = navController::navigateUp
                         )
                     }
                     composable<ChatRoute> {
@@ -457,6 +601,15 @@ fun MainScreen(
                         end = LocalPaddings.current.large,
                         bottom = LocalPaddings.current.large,
                     )
+            )
+        }
+
+        if (isMaintenanceActiveForOwner) {
+            com.imashnake.animite.social.ui.owner.OwnerMaintenanceBanner(
+                onNavigateToOwnerCenter = {
+                    navController.navigate(OwnerControlCenterRoute)
+                },
+                modifier = Modifier.align(Alignment.TopCenter)
             )
         }
     }
