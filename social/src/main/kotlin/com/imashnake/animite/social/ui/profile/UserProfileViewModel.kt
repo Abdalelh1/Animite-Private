@@ -77,6 +77,7 @@ class UserProfileViewModel @Inject constructor(
         authRepository.authState.flatMapLatest { authState ->
             when (authState) {
                 is AuthState.Authenticated -> userProfileRepository.getUserProfile(authState.user.uid)
+                    .map { profile -> profile ?: authState.user }
                 else -> flowOf(null)
             }
         }
