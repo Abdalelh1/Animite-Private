@@ -390,6 +390,69 @@ fun GoogleAuthButton(
 }
 
 @Composable
+fun GooglePrimaryButton(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(percent = 50),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color(0xFF7DD3FC),
+            contentColor = Color(0xFF082F49),
+            disabledContainerColor = Color(0xFF7DD3FC).copy(alpha = 0.4f),
+            disabledContentColor = Color(0xFF082F49).copy(alpha = 0.4f),
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(54.dp),
+    ) {
+        GoogleColoredIcon(modifier = Modifier.size(20.dp))
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = "تسجيل الدخول باستخدام Google",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+        )
+    }
+}
+
+@Composable
+fun EmailAuthButton(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+) {
+    FilledTonalButton(
+        onClick = onClick,
+        enabled = enabled,
+        shape = RoundedCornerShape(percent = 50),
+        colors = ButtonDefaults.filledTonalButtonColors(
+            containerColor = Color(0xFF1E242B),
+            contentColor = Color.White
+        ),
+        modifier = modifier
+            .fillMaxWidth()
+            .height(52.dp),
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.Email,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp),
+        )
+        Spacer(Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleSmall,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
 fun AuthDivider(modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth(),
@@ -407,7 +470,9 @@ fun AuthDivider(modifier: Modifier = Modifier) {
 }
 
 /**
- * Unified Auth Content embedding the Fuji banner with Login & SignUp flows.
+ * Unified Auth Content: AniSync-style welcome hero (animated poster collage)
+ * with Google as the primary action and the email Login & SignUp form
+ * revealed on demand.
  */
 @Composable
 fun AuthContent(
@@ -415,10 +480,12 @@ fun AuthContent(
     viewModel: AuthViewModel = hiltViewModel(),
     onAuthSuccess: (() -> Unit)? = null,
     onSettingsClick: (() -> Unit)? = null,
+    heroCoverUrls: List<String> = emptyList(),
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     var isSignUpMode by rememberSaveable { mutableStateOf(false) }
+    var isEmailFormVisible by rememberSaveable { mutableStateOf(false) }
 
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -474,11 +541,9 @@ fun AuthContent(
             .background(MaterialTheme.colorScheme.background)
             .verticalScroll(rememberScrollState()),
     ) {
-        FujiBanner(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(if (isSignUpMode) 148.dp else 238.dp),
-            onSettingsClick = onSettingsClick,
+        WelcomeCollageHero(
+            coverUrls = heroCoverUrls,
+            modifier = Modifier.fillMaxWidth(),
         )
 
         Column(
@@ -488,15 +553,15 @@ fun AuthContent(
                 .padding(top = if (isSignUpMode) 20.dp else 24.dp),
         ) {
             Text(
-                text = if (isSignUpMode) "إنشاء حساب جديد" else "أهلاً بعودتك",
-                style = MaterialTheme.typography.headlineSmall,
+                text = if (isSignUpMode && isEmailFormVisible) "إنشاء حساب جديد" else "مكتبتك، متزامنة دائمًا.",
+                style = MaterialTheme.typography.headlineMedium,
                 fontWeight = FontWeight.Bold,
             )
             Text(
-                text = if (isSignUpMode)
+                text = if (isSignUpMode && isEmailFormVisible)
                     "انضم إلينا وتابع أنميك المفضل وشارك مجتمعك."
                 else
-                    "سجّل دخولك لمتابعة الأنمي والمانغا ومزامنة قوائمك.",
+                    "تابع الأنمي والمانجا ولا تفوّت أي حلقة تُعرض.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(top = 6.dp),
@@ -565,147 +630,157 @@ fun AuthContent(
 
             Spacer(Modifier.height(20.dp))
 
-            if (isSignUpMode) {
-                // Sign Up Fields
-                AuthTextField(
-                    value = username,
-                    onValueChange = { username = it },
-                    label = "اسم المستخدم",
-                    leadingIcon = Icons.Rounded.Person,
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                AuthTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = "البريد الإلكتروني",
-                    leadingIcon = Icons.Rounded.Email,
-                    keyboardType = KeyboardType.Email,
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                AuthPasswordField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = "كلمة المرور",
-                    supportingText = "٨ أحرف على الأقل",
-                )
-
-                Spacer(Modifier.height(12.dp))
-
-                val passwordsMismatch = confirmPassword.isNotEmpty() && confirmPassword != password
-                AuthPasswordField(
-                    value = confirmPassword,
-                    onValueChange = { confirmPassword = it },
-                    label = "تأكيد كلمة المرور",
-                    isError = passwordsMismatch,
-                    supportingText = if (passwordsMismatch) "كلمتا المرور غير متطابقتين" else null,
-                )
-
-                Row(
-                    modifier = Modifier.padding(top = 10.dp),
-                    verticalAlignment = Alignment.Top,
-                ) {
-                    Checkbox(
-                        checked = acceptedTerms,
-                        onCheckedChange = { acceptedTerms = it },
-                    )
-                    val termsText = buildAnnotatedString {
-                        append("أوافق على ")
-                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)) {
-                            append("الشروط والأحكام")
-                        }
-                        append(" و")
-                        withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)) {
-                            append("سياسة الخصوصية")
-                        }
-                        append(" الخاصة بالتطبيق.")
-                    }
-                    Text(
-                        text = termsText,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-
-                Spacer(Modifier.height(14.dp))
-
-                val isFormValid = username.isNotBlank() &&
-                    email.isNotBlank() &&
-                    password.length >= 8 &&
-                    confirmPassword == password &&
-                    acceptedTerms
-
-                PrimaryAuthButton(
-                    text = "إنشاء الحساب",
-                    onClick = {
-                        viewModel.signUp(email, password, username, username)
-                    },
-                    enabled = isFormValid,
-                    isLoading = isLoading,
-                )
-            } else {
-                // Login Fields
-                AuthTextField(
-                    value = email,
-                    onValueChange = { email = it },
-                    label = "البريد الإلكتروني",
-                    leadingIcon = Icons.Rounded.Email,
-                    keyboardType = KeyboardType.Email,
-                )
-
-                Spacer(Modifier.height(14.dp))
-
-                AuthPasswordField(
-                    value = password,
-                    onValueChange = { password = it },
-                    label = "كلمة المرور",
-                )
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(
-                        checked = rememberMe,
-                        onCheckedChange = { rememberMe = it },
-                    )
-                    Text(
-                        text = "تذكّرني",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    Spacer(Modifier.weight(1f))
-                    TextButton(onClick = { viewModel.resetPassword(email) }) {
-                        Text("نسيت كلمة المرور؟")
-                    }
-                }
-
-                Spacer(Modifier.height(14.dp))
-
-                PrimaryAuthButton(
-                    text = "تسجيل الدخول",
-                    onClick = {
-                        viewModel.signIn(email, password)
-                    },
-                    enabled = email.isNotBlank() && password.isNotBlank(),
-                    isLoading = isLoading,
-                )
-            }
-
-            Spacer(Modifier.height(20.dp))
-            AuthDivider()
-            Spacer(Modifier.height(16.dp))
-
-            GoogleAuthButton(
+            GooglePrimaryButton(
                 onClick = onGoogleClick,
-                enabled = !isLoading
+                enabled = !isLoading,
             )
+
+            Spacer(Modifier.height(12.dp))
+
+            EmailAuthButton(
+                text = if (isEmailFormVisible) "إخفاء الدخول بالبريد" else "تسجيل الدخول بالبريد الإلكتروني",
+                onClick = { isEmailFormVisible = !isEmailFormVisible },
+                enabled = !isLoading,
+            )
+
+            AnimatedVisibility(visible = isEmailFormVisible) {
+                Column {
+                    Spacer(Modifier.height(20.dp))
+
+                    if (isSignUpMode) {
+                        // Sign Up Fields
+                        AuthTextField(
+                            value = username,
+                            onValueChange = { username = it },
+                            label = "اسم المستخدم",
+                            leadingIcon = Icons.Rounded.Person,
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        AuthTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = "البريد الإلكتروني",
+                            leadingIcon = Icons.Rounded.Email,
+                            keyboardType = KeyboardType.Email,
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        AuthPasswordField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = "كلمة المرور",
+                            supportingText = "٨ أحرف على الأقل",
+                        )
+
+                        Spacer(Modifier.height(12.dp))
+
+                        val passwordsMismatch = confirmPassword.isNotEmpty() && confirmPassword != password
+                        AuthPasswordField(
+                            value = confirmPassword,
+                            onValueChange = { confirmPassword = it },
+                            label = "تأكيد كلمة المرور",
+                            isError = passwordsMismatch,
+                            supportingText = if (passwordsMismatch) "كلمتا المرور غير متطابقتين" else null,
+                        )
+
+                        Row(
+                            modifier = Modifier.padding(top = 10.dp),
+                            verticalAlignment = Alignment.Top,
+                        ) {
+                            Checkbox(
+                                checked = acceptedTerms,
+                                onCheckedChange = { acceptedTerms = it },
+                            )
+                            val termsText = buildAnnotatedString {
+                                append("أوافق على ")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)) {
+                                    append("الشروط والأحكام")
+                                }
+                                append(" و")
+                                withStyle(SpanStyle(color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.SemiBold)) {
+                                    append("سياسة الخصوصية")
+                                }
+                                append(" الخاصة بالتطبيق.")
+                            }
+                            Text(
+                                text = termsText,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(top = 12.dp),
+                            )
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        val isFormValid = username.isNotBlank() &&
+                            email.isNotBlank() &&
+                            password.length >= 8 &&
+                            confirmPassword == password &&
+                            acceptedTerms
+
+                        PrimaryAuthButton(
+                            text = "إنشاء الحساب",
+                            onClick = {
+                                viewModel.signUp(email, password, username, username)
+                            },
+                            enabled = isFormValid,
+                            isLoading = isLoading,
+                        )
+                    } else {
+                        // Login Fields
+                        AuthTextField(
+                            value = email,
+                            onValueChange = { email = it },
+                            label = "البريد الإلكتروني",
+                            leadingIcon = Icons.Rounded.Email,
+                            keyboardType = KeyboardType.Email,
+                        )
+
+                        Spacer(Modifier.height(14.dp))
+
+                        AuthPasswordField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = "كلمة المرور",
+                        )
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Checkbox(
+                                checked = rememberMe,
+                                onCheckedChange = { rememberMe = it },
+                            )
+                            Text(
+                                text = "تذكّرني",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                            Spacer(Modifier.weight(1f))
+                            TextButton(onClick = { viewModel.resetPassword(email) }) {
+                                Text("نسيت كلمة المرور؟")
+                            }
+                        }
+
+                        Spacer(Modifier.height(14.dp))
+
+                        PrimaryAuthButton(
+                            text = "تسجيل الدخول",
+                            onClick = {
+                                viewModel.signIn(email, password)
+                            },
+                            enabled = email.isNotBlank() && password.isNotBlank(),
+                            isLoading = isLoading,
+                        )
+                    }
+                }
+            }
 
             Spacer(Modifier.height(24.dp))
 
@@ -723,6 +798,7 @@ fun AuthContent(
                 )
                 TextButton(onClick = {
                     isSignUpMode = !isSignUpMode
+                    isEmailFormVisible = true
                     viewModel.clearState()
                 }) {
                     Text(

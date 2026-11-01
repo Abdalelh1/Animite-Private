@@ -47,7 +47,6 @@ fun AuthBottomSheet(
             onAuthSuccess = onDismissRequest,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
                 .padding(bottom = 32.dp)
                 .verticalScroll(rememberScrollState())
         )
